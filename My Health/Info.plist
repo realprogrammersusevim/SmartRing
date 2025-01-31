@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Access is required to write health data</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Connecting to the ring</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>We need to connect to the ring in the background</string>
+	<key>NSHealthClinicalHealthRecordsShareUsageDescription</key>
+	<string>Access is required to read all your health data</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>bluetooth-central</string>
+	</array>
+</dict>
+</plist>
