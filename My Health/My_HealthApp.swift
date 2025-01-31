@@ -5,15 +5,15 @@
 //  Created by Jonathan Milligan on 10/15/24.
 //
 
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 @main
 struct My_HealthApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             HeartRateData.self,
-            BloodOxygenData.self
+            BloodOxygenData.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

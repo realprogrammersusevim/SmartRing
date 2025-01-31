@@ -5,9 +5,9 @@
 //  Created by Jonathan Milligan on 10/15/24.
 //
 
-import SwiftUI
-import SwiftData
 import HealthKit
+import SwiftData
+import SwiftUI
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
@@ -15,8 +15,11 @@ struct ContentView: View {
     @State private var healthKitAuthorized = false
 
     init() {
-        _bleManager = ObservedObject(wrappedValue: BLEManager(serviceUUID: "6e40fff0-b5a3-f393-e0a9-e50e24dcca9e",
-                                                              dataCharacteristicUUID: "6e400002-b5a3-f393-e0a9-e50e24dcca9e"))
+        _bleManager = ObservedObject(
+            wrappedValue: BLEManager(
+                serviceUUID: "6e40fff0-b5a3-f393-e0a9-e50e24dcca9e",
+                dataCharacteristicUUID: "6e400002-b5a3-f393-e0a9-e50e24dcca9e"
+            ))
     }
 
     var body: some View {
@@ -35,7 +38,7 @@ struct ContentView: View {
                 healthKitAuthorized = success
                 if success {
                     print("HealthKit Authorization Granted.")
-                } else if let error = error {
+                } else if let error {
                     print("HealthKit Authorization Failed: \(error.localizedDescription)")
                 }
             }
@@ -139,7 +142,7 @@ struct SettingsView: View {
 // Function to log heart rate to SwiftData and HealthKit
 func logHeartRate(heartRate: Int) {
     @Environment(\.modelContext) var modelContext
-    
+
     Task { @MainActor in // Ensure SwiftData operations on main actor
         do {
             let newData = HeartRateData(timestamp: Date(), heartRate: heartRate)
@@ -147,10 +150,15 @@ func logHeartRate(heartRate: Int) {
             try modelContext.save()
             print("Heart rate logged to SwiftData.")
 
-            if HealthKitManager.shared.healthStore.authorizationStatus(for: HKQuantityType.quantityType(forIdentifier: .heartRate)!) == .sharingAuthorized {
-                HealthKitManager.shared.saveHeartRate(heartRate: heartRate, timestamp: newData.timestamp)
+            if HealthKitManager.shared.healthStore.authorizationStatus(
+                for: HKQuantityType.quantityType(forIdentifier: .heartRate)!) == .sharingAuthorized
+            {
+                HealthKitManager.shared.saveHeartRate(
+                    heartRate: heartRate, timestamp: newData.timestamp
+                )
             } else {
-                print("HealthKit authorization not granted for Heart Rate, skipping HealthKit save.")
+                print(
+                    "HealthKit authorization not granted for Heart Rate, skipping HealthKit save.")
             }
 
         } catch {
@@ -162,7 +170,7 @@ func logHeartRate(heartRate: Int) {
 // Function to log blood oxygen count (example) - adapt for other data types
 func logBloodOxygen(bloodOxygen: Int) {
     @Environment(\.modelContext) var modelContext
-    
+
     Task { @MainActor in
         do {
             let newData = BloodOxygenData(timestamp: Date(), bloodOxygen: bloodOxygen)
@@ -170,10 +178,17 @@ func logBloodOxygen(bloodOxygen: Int) {
             try modelContext.save()
             print("Blood oxygen logged to SwiftData.")
 
-            if HealthKitManager.shared.healthStore.authorizationStatus(for: HKQuantityType.quantityType(forIdentifier: .oxygenSaturation)!) == .sharingAuthorized {
-                HealthKitManager.shared.saveBloodOxygen(bloodOxygen: bloodOxygen, timestamp: newData.timestamp)
+            if HealthKitManager.shared.healthStore.authorizationStatus(
+                for: HKQuantityType.quantityType(forIdentifier: .oxygenSaturation)!)
+                == .sharingAuthorized
+            {
+                HealthKitManager.shared.saveBloodOxygen(
+                    bloodOxygen: bloodOxygen, timestamp: newData.timestamp
+                )
             } else {
-                print("HealthKit authorization not granted for Blood Oxygen, skipping HealthKit save.")
+                print(
+                    "HealthKit authorization not granted for Blood Oxygen, skipping HealthKit save."
+                )
             }
 
         } catch {
@@ -181,7 +196,6 @@ func logBloodOxygen(bloodOxygen: Int) {
         }
     }
 }
-
 
 #Preview {
     ContentView()

@@ -21,13 +21,13 @@ class HealthKitManager {
 
         let typesToShare: Set<HKSampleType> = [
             HKQuantityType.quantityType(forIdentifier: .heartRate)!,
-            HKQuantityType.quantityType(forIdentifier: .oxygenSaturation)! // Add more types as needed
+            HKQuantityType.quantityType(forIdentifier: .oxygenSaturation)!, // Add more types as needed
             // ... Add other HealthKit data types you want to write
         ]
 
         let typesToRead: Set<HKObjectType> = [] // Read types if needed in the future
 
-        healthStore.requestAuthorization(toShare: typesToShare, read: typesToRead) { (success, error) in
+        healthStore.requestAuthorization(toShare: typesToShare, read: typesToRead) { success, error in
             completion(success, error)
         }
     }
@@ -41,8 +41,8 @@ class HealthKitManager {
         let heartRateQuantity = HKQuantity(unit: HKUnit.count().unitDivided(by: HKUnit.minute()), doubleValue: Double(heartRate))
         let heartRateSample = HKQuantitySample(type: heartRateType, quantity: heartRateQuantity, start: timestamp, end: timestamp)
 
-        healthStore.save(heartRateSample) { (success, error) in
-            if let error = error {
+        healthStore.save(heartRateSample) { success, error in
+            if let error {
                 print("Error saving heart rate to HealthKit: \(error.localizedDescription)")
             } else if success {
                 print("Heart rate data saved to HealthKit.")
@@ -59,8 +59,8 @@ class HealthKitManager {
         let bloodOxygenQuantity = HKQuantity(unit: HKUnit.count(), doubleValue: Double(bloodOxygen))
         let bloodOxygenSample = HKQuantitySample(type: bloodOxygenType, quantity: bloodOxygenQuantity, start: timestamp, end: timestamp)
 
-        healthStore.save(bloodOxygenSample) { (success, error) in
-            if let error = error {
+        healthStore.save(bloodOxygenSample) { success, error in
+            if let error {
                 print("Error saving blood oxygen to HealthKit: \(error.localizedDescription)")
             } else if success {
                 print("Blood oxygen data saved to HealthKit.")

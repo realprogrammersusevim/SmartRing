@@ -7,9 +7,9 @@
 
 import Foundation
 
-struct DataParser {
-    static func parse(_ data: Data) throws -> String {
+enum DataParser {
+    static func parse(_: Data) throws -> String {
         // TODO: laters
-        return ""
+        ""
     }
 }

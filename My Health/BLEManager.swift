@@ -13,46 +13,46 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     @Published var discoveredPeripherals: [CBPeripheral] = []
     @Published var connectedPeripheral: CBPeripheral?
     @Published var receivedData: String = "" // For debugging/raw data
-    
+
     private var centralManager: CBCentralManager!
     private var smartRingServiceUUID: CBUUID!
     private var dataCharacteristicUUID: CBUUID!
-    
+
     init(serviceUUID: String, dataCharacteristicUUID: String) {
         super.init()
-        
+
         centralManager = CBCentralManager(delegate: self, queue: nil)
-        self.smartRingServiceUUID = CBUUID(string: serviceUUID)
+        smartRingServiceUUID = CBUUID(string: serviceUUID)
         self.dataCharacteristicUUID = CBUUID(string: dataCharacteristicUUID)
     }
-    
+
     func startScanning() {
         discoveredPeripherals.removeAll()
         centralManager.scanForPeripherals(withServices: [smartRingServiceUUID!], options: nil)
         isScanning = true
         print("Scanning started...")
     }
-    
+
     func stopScanning() {
         centralManager.stopScan()
         isScanning = false
         print("Scanning stopped.")
     }
-    
+
     func connect(peripheral: CBPeripheral) {
         stopScanning()
         connectedPeripheral = peripheral
         centralManager.connect(peripheral, options: nil)
         print(String(format: "Connected to %@", peripheral.name ?? "Unknown device"))
     }
-    
+
     func disconnect() {
         guard let peripheral = connectedPeripheral else { return }
         centralManager.cancelPeripheralConnection(peripheral)
         connectedPeripheral = nil
         print("Disconnected from \(peripheral.name ?? "Unknown device")")
     }
-    
+
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         switch central.state {
         case .poweredOn:
@@ -60,55 +60,64 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         case .poweredOff:
             print("Bluetooth is powered OFF")
         case .unsupported:
-            print( "Bluetooth is not supported on this device.")
+            print("Bluetooth is not supported on this device.")
         case .resetting:
-            print( "Bluetooth is resetting.")
+            print("Bluetooth is resetting.")
         case .unknown:
-            print( "Bluetooth state unknown.")
+            print("Bluetooth state unknown.")
         case .unauthorized:
-            print( "Bluetooth is unauthorized.")
+            print("Bluetooth is unauthorized.")
         @unknown default:
-            print( "Unknown Bluetooth state.")
+            print("Unknown Bluetooth state.")
         }
     }
-    
-    func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
+
+    func centralManager(
+        _: CBCentralManager, didDiscover peripheral: CBPeripheral,
+        advertisementData _: [String: Any], rssi _: NSNumber
+    ) {
         if !discoveredPeripherals.contains(peripheral) {
             discoveredPeripherals.append(peripheral)
-            print( "Discovered \(peripheral.name ?? "Unknown device")")
+            print("Discovered \(peripheral.name ?? "Unknown device")")
         }
     }
-    
-    func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        print( "Connected to \(peripheral.name ?? "Unknown device")")
+
+    func centralManager(_: CBCentralManager, didConnect peripheral: CBPeripheral) {
+        print("Connected to \(peripheral.name ?? "Unknown device")")
         peripheral.discoverServices([smartRingServiceUUID])
     }
-    
-    func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+
+    func centralManager(
+        _: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error _: Error?
+    ) {
         print("Disconnected from \(peripheral.name ?? "Unknown device")")
         connectedPeripheral = nil
     }
-    
-    func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
-        print( "Failed to connect to \(peripheral.name ?? "Unknown device")")
+
+    func centralManager(
+        _: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error _: Error?
+    ) {
+        print("Failed to connect to \(peripheral.name ?? "Unknown device")")
         connectedPeripheral = nil
     }
-    
+
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
-        if let error = error {
-            print( "Error discovering services: \(error.localizedDescription)")
+        if let error {
+            print("Error discovering services: \(error.localizedDescription)")
             return
         }
-        
+
         guard let services = peripheral.services else { return }
         for service in services {
-            print( "Discovered service: \(service.uuid)")
+            print("Discovered service: \(service.uuid)")
             peripheral.discoverCharacteristics([dataCharacteristicUUID], for: service)
         }
     }
-    
-    func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
-        if let error = error {
+
+    func peripheral(
+        _ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?
+    ) {
+        if let error {
             print("Error discovering characteristics: \(error.localizedDescription)")
             return
         }
@@ -121,9 +130,12 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             }
         }
     }
-    
-    func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
-        if let error = error {
+
+    func peripheral(
+        _: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic,
+        error: Error?
+    ) {
+        if let error {
             print("Error updating value for characteristic: \(error.localizedDescription)")
             return
         }
@@ -134,8 +146,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             // TODO: Process data here
         }
     }
-    
-    private func processData(data: Data) {
+
+    private func processData(data _: Data) {
         // TODO: Copy parsing from Python library
     }
 }
