@@ -11,23 +11,23 @@ import SwiftUI
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
-    @ObservedObject var bleManager: BLEManager
+    @ObservedObject var ringManager: ColmiR02Client
     @State private var healthKitAuthorized = false
 
     init() {
-        _bleManager = ObservedObject(
-            wrappedValue: BLEManager(
-                serviceUUID: "6e40fff0-b5a3-f393-e0a9-e50e24dcca9e",
-                dataCharacteristicUUID: "6e400002-b5a3-f393-e0a9-e50e24dcca9e"
-            ))
+        let storedAddress = UserDefaults.standard.string(forKey: lastConnectedPeripheralIdentifierKey)
+        let initialAddress = storedAddress ?? "D890C620-D962-42FA-A099-81A4F7605434" // Fallback to default
+        _ringManager = ObservedObject(
+            wrappedValue: ColmiR02Client(address: initialAddress)
+        )
     }
 
     var body: some View {
         TabView {
-            ScanningView(bleManager: bleManager)
+            ScanningView(bleManager: ringManager)
                 .tabItem { Label("Scan", systemImage: "magnifyingglass") }
 
-            DataDisplayView()
+            DataDisplayView(bleManager: ringManager)
                 .tabItem { Label("Data", systemImage: "list.bullet.rectangle") }
 
             SettingsView(healthKitAuthorized: $healthKitAuthorized)
@@ -47,7 +47,7 @@ struct ContentView: View {
 }
 
 struct ScanningView: View {
-    @ObservedObject var bleManager: BLEManager
+    @ObservedObject var bleManager: ColmiR02Client
 
     var body: some View {
         VStack {
@@ -79,19 +79,67 @@ struct ScanningView: View {
                 }
             }
 
-            Text("Raw Data: \($bleManager.receivedData)") // Debug display
+            Text("Raw Data: \(bleManager.receivedData)") // Debug display
         }
         .padding()
     }
 }
 
 struct DataDisplayView: View {
+    @ObservedObject var bleManager: ColmiR02Client
+
     @Environment(\.modelContext) private var modelContext
     @Query private var heartRateData: [HeartRateData]
     @Query private var bloodOxygenData: [BloodOxygenData]
 
+    @State private var batteryInfoString: String = "N/A"
+
     var body: some View {
         VStack {
+            Text("Info")
+                .font(.title)
+            List {
+                Text("Battery: \(batteryInfoString)")
+                Button("Get Battery") {
+                    bleManager.getBattery { result in
+                        DispatchQueue.main.async { // Ensure UI updates on main thread
+                            switch result {
+                            case let .success(batteryInfo):
+                                batteryInfoString = "\(batteryInfo.batteryLevel)% (Charging: \(batteryInfo.charging ? "Yes" : "No"))"
+                            case let .failure(error):
+                                batteryInfoString = "Error: \(error.localizedDescription)"
+                            }
+                        }
+                    }
+                }
+                Button("Log Data Now") {
+                    // Fetch Heart Rate
+                    bleManager.getRealtimeReading(readingType: .heartRate) { hrResult in
+                        DispatchQueue.main.async {
+                            switch hrResult {
+                            case let .success(hrReading):
+                                print("Manual Log: Fetched heart rate: \(hrReading.value)")
+                                logHeartRate(heartRate: hrReading.value, modelContext: modelContext)
+
+                                // Fetch Blood Oxygen after heart rate
+                                bleManager.getRealtimeReading(readingType: .spo2) { spo2Result in
+                                    DispatchQueue.main.async {
+                                        switch spo2Result {
+                                        case let .success(spo2Reading):
+                                            print("Manual Log: Fetched SpO2: \(spo2Reading.value)")
+                                            logBloodOxygen(bloodOxygen: spo2Reading.value, modelContext: modelContext)
+                                        case let .failure(error):
+                                            print("Manual Log: Failed to fetch SpO2: \(error.localizedDescription)")
+                                        }
+                                    }
+                                }
+                            case let .failure(error):
+                                print("Manual Log: Failed to fetch heart rate: \(error.localizedDescription)")
+                            }
+                        }
+                    }
+                }
+            }
             Text("Logged Data")
                 .font(.title)
 
@@ -140,10 +188,8 @@ struct SettingsView: View {
 }
 
 // Function to log heart rate to SwiftData and HealthKit
-func logHeartRate(heartRate: Int) {
-    @Environment(\.modelContext) var modelContext
-
-    Task { @MainActor in // Ensure SwiftData operations on main actor
+func logHeartRate(heartRate: Int, modelContext: ModelContext) {
+    Task { @MainActor in
         do {
             let newData = HeartRateData(timestamp: Date(), heartRate: heartRate)
             modelContext.insert(newData)
@@ -168,9 +214,7 @@ func logHeartRate(heartRate: Int) {
 }
 
 // Function to log blood oxygen count (example) - adapt for other data types
-func logBloodOxygen(bloodOxygen: Int) {
-    @Environment(\.modelContext) var modelContext
-
+func logBloodOxygen(bloodOxygen: Int, modelContext: ModelContext) {
     Task { @MainActor in
         do {
             let newData = BloodOxygenData(timestamp: Date(), bloodOxygen: bloodOxygen)

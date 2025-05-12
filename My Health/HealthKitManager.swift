@@ -56,7 +56,7 @@ class HealthKitManager {
             return
         }
 
-        let bloodOxygenQuantity = HKQuantity(unit: HKUnit.count(), doubleValue: Double(bloodOxygen))
+        let bloodOxygenQuantity = HKQuantity(unit: HKUnit.percent(), doubleValue: Double(bloodOxygen) / 100.0)
         let bloodOxygenSample = HKQuantitySample(type: bloodOxygenType, quantity: bloodOxygenQuantity, start: timestamp, end: timestamp)
 
         healthStore.save(bloodOxygenSample) { success, error in
