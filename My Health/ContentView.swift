@@ -12,14 +12,12 @@ import SwiftUI
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @ObservedObject var ringManager: ColmiR02Client
+    private let healthDataLogger = HealthDataLogger.shared
     @State private var healthKitAuthorized = false
 
     init() {
-        let storedAddress = UserDefaults.standard.string(forKey: lastConnectedPeripheralIdentifierKey)
-        let initialAddress = storedAddress ?? "D890C620-D962-42FA-A099-81A4F7605434" // Fallback to default
-        _ringManager = ObservedObject(
-            wrappedValue: ColmiR02Client(address: initialAddress)
-        )
+        let initialAddress = DeviceSettingsManager.shared.getTargetDeviceAddress()
+        _ringManager = ObservedObject(wrappedValue: ColmiR02Client(address: initialAddress))
     }
 
     var body: some View {
@@ -101,42 +99,20 @@ struct DataDisplayView: View {
             List {
                 Text("Battery: \(batteryInfoString)")
                 Button("Get Battery") {
-                    bleManager.getBattery { result in
-                        DispatchQueue.main.async { // Ensure UI updates on main thread
-                            switch result {
-                            case let .success(batteryInfo):
-                                batteryInfoString = "\(batteryInfo.batteryLevel)% (Charging: \(batteryInfo.charging ? "Yes" : "No"))"
-                            case let .failure(error):
-                                batteryInfoString = "Error: \(error.localizedDescription)"
-                            }
+                    Task {
+                        do {
+                            let batteryInfo = try await bleManager.getBattery()
+                            batteryInfoString = "\(batteryInfo.batteryLevel)% (Charging: \(batteryInfo.charging ? "Yes" : "No"))"
+                        } catch {
+                            batteryInfoString = "Error: \(error.localizedDescription)"
                         }
                     }
                 }
                 Button("Log Data Now") {
-                    // Fetch Heart Rate
-                    bleManager.getRealtimeReading(readingType: .heartRate) { hrResult in
-                        DispatchQueue.main.async {
-                            switch hrResult {
-                            case let .success(hrReading):
-                                print("Manual Log: Fetched heart rate: \(hrReading.value)")
-                                logHeartRate(heartRate: hrReading.value, modelContext: modelContext)
-
-                                // Fetch Blood Oxygen after heart rate
-                                bleManager.getRealtimeReading(readingType: .spo2) { spo2Result in
-                                    DispatchQueue.main.async {
-                                        switch spo2Result {
-                                        case let .success(spo2Reading):
-                                            print("Manual Log: Fetched SpO2: \(spo2Reading.value)")
-                                            logBloodOxygen(bloodOxygen: spo2Reading.value, modelContext: modelContext)
-                                        case let .failure(error):
-                                            print("Manual Log: Failed to fetch SpO2: \(error.localizedDescription)")
-                                        }
-                                    }
-                                }
-                            case let .failure(error):
-                                print("Manual Log: Failed to fetch heart rate: \(error.localizedDescription)")
-                            }
-                        }
+                    Task {
+                        await HealthDataLogger.shared.logCurrentHealthData(
+                            bleManager: bleManager, modelContext: modelContext
+                        )
                     }
                 }
             }
@@ -184,60 +160,6 @@ struct SettingsView: View {
             // ... Add other settings options
         }
         .padding()
-    }
-}
-
-// Function to log heart rate to SwiftData and HealthKit
-func logHeartRate(heartRate: Int, modelContext: ModelContext) {
-    Task { @MainActor in
-        do {
-            let newData = HeartRateData(timestamp: Date(), heartRate: heartRate)
-            modelContext.insert(newData)
-            try modelContext.save()
-            print("Heart rate logged to SwiftData.")
-
-            if HealthKitManager.shared.healthStore.authorizationStatus(
-                for: HKQuantityType.quantityType(forIdentifier: .heartRate)!) == .sharingAuthorized
-            {
-                HealthKitManager.shared.saveHeartRate(
-                    heartRate: heartRate, timestamp: newData.timestamp
-                )
-            } else {
-                print(
-                    "HealthKit authorization not granted for Heart Rate, skipping HealthKit save.")
-            }
-
-        } catch {
-            print("Error logging heart rate to SwiftData: \(error)")
-        }
-    }
-}
-
-// Function to log blood oxygen count (example) - adapt for other data types
-func logBloodOxygen(bloodOxygen: Int, modelContext: ModelContext) {
-    Task { @MainActor in
-        do {
-            let newData = BloodOxygenData(timestamp: Date(), bloodOxygen: bloodOxygen)
-            modelContext.insert(newData)
-            try modelContext.save()
-            print("Blood oxygen logged to SwiftData.")
-
-            if HealthKitManager.shared.healthStore.authorizationStatus(
-                for: HKQuantityType.quantityType(forIdentifier: .oxygenSaturation)!)
-                == .sharingAuthorized
-            {
-                HealthKitManager.shared.saveBloodOxygen(
-                    bloodOxygen: bloodOxygen, timestamp: newData.timestamp
-                )
-            } else {
-                print(
-                    "HealthKit authorization not granted for Blood Oxygen, skipping HealthKit save."
-                )
-            }
-
-        } catch {
-            print("Error logging blood oxygen to SwiftData: \(error)")
-        }
     }
 }
 

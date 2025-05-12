@@ -12,6 +12,7 @@ import SwiftUI
 @main
 struct My_HealthApp: App {
     @Environment(\.scenePhase) private var scenePhase
+    private let healthDataLogger = HealthDataLogger.shared
     let backgroundTaskIdentifier = "com.health.jonathan.logHealthData"
 
     var sharedModelContainer: ModelContainer = {
@@ -83,60 +84,20 @@ struct My_HealthApp: App {
         let modelContext = ModelContext(container)
 
         // Use stored address for background tasks, fallback to default if not found
-        let storedAddress = UserDefaults.standard.string(
-            forKey: lastConnectedPeripheralIdentifierKey)
-        let deviceAddressForBackgroundTask = storedAddress ?? "D890C620-D962-42FA-A099-81A4F7605434" // Fallback
+        let deviceAddressForBackgroundTask = DeviceSettingsManager.shared.getTargetDeviceAddress()
         let ringManager = ColmiR02Client(address: deviceAddressForBackgroundTask)
-
-        let operationQueue = OperationQueue()
-        operationQueue.maxConcurrentOperationCount = 1 // Process sequentially
-
-        let fetchHeartRateOperation = BlockOperation {
-            let semaphore = DispatchSemaphore(value: 0)
-            ringManager.getRealtimeReading(readingType: .heartRate) { result in
-                switch result {
-                case let .success(reading):
-                    print("Background task: Fetched heart rate: \(reading.value)")
-                    logHeartRate(heartRate: reading.value, modelContext: modelContext)
-                case let .failure(error):
-                    print("Background task: Failed to fetch heart rate: \(error)")
-                }
-                semaphore.signal()
-            }
-            semaphore.wait() // Wait for the async operation to complete
-        }
-
-        let fetchBloodOxygenOperation = BlockOperation {
-            let semaphore = DispatchSemaphore(value: 0)
-            ringManager.getRealtimeReading(readingType: .spo2) { result in
-                switch result {
-                case let .success(reading):
-                    print("Background task: Fetched SpO2: \(reading.value)")
-                    logBloodOxygen(bloodOxygen: reading.value, modelContext: modelContext)
-                case let .failure(error):
-                    print("Background task: Failed to fetch SpO2: \(error)")
-                }
-                semaphore.signal()
-            }
-            semaphore.wait() // Wait for the async operation to complete
-        }
-
-        fetchBloodOxygenOperation.addDependency(fetchHeartRateOperation)
-        operationQueue.addOperation(fetchHeartRateOperation)
-        operationQueue.addOperation(fetchBloodOxygenOperation)
 
         task.expirationHandler = {
             print("Background task \(backgroundTaskIdentifier) expired.")
-            operationQueue.cancelAllOperations()
             // ringManager.disconnect() // Consider disconnecting if appropriate
             task.setTaskCompleted(success: false)
         }
 
-        operationQueue.addBarrierBlock {
-            // This block runs after all operations in the queue are finished.
-            // ringManager.disconnect() // Consider disconnecting if appropriate
-            print("Background task \(backgroundTaskIdentifier) work finished.")
-            task.setTaskCompleted(success: true)
+        Task {
+            await healthDataLogger.logCurrentHealthData(bleManager: ringManager, modelContext: modelContext)
+            // ringManager.disconnect() // Consider if disconnect is needed after background fetch
+            print("Background task \(backgroundTaskIdentifier) work finished processing.")
+            task.setTaskCompleted(success: true) // Mark success after async operations complete
         }
     }
 }
