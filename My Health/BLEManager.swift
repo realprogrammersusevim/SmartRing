@@ -273,7 +273,11 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
     // Store CheckedContinuation for async/await
     private var responseContinuations: [UInt8: CheckedContinuation<Data, Error>] = [:]
     private var heartRateLogParser = HeartRateLogParser()
+    private var heartRateLogContinuation: CheckedContinuation<HeartRateLog, Error>?
+
     private var sportDetailParser = SportDetailParser()
+    private var sportDetailContinuation: CheckedContinuation<[SportDetail], Error>?
+    private var characteristicReadContinuations: [CBUUID: CheckedContinuation<Data, Error>] = [:]
 
     @Published var isScanning: Bool = false
     @Published var discoveredPeripherals: [CBPeripheral] = []
@@ -352,70 +356,39 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
 
     // MARK: - Command Functions (Based on cli.py and client.py)
 
-    func getDeviceInfo(completion: @escaping (Result<[String: String], Error>) -> Void) {
+    private func readCharacteristicValue(characteristicUUID: CBUUID, serviceUUID: CBUUID) async throws -> Data {
         guard let peripheral = connectedPeripheral else {
-            completion(.failure(NSError(domain: "ColmiR02Client", code: 1, userInfo: [NSLocalizedDescriptionKey: "Not connected"])))
-            return
+            throw NSError(domain: "ColmiR02Client", code: 1, userInfo: [NSLocalizedDescriptionKey: "Not connected"])
         }
+        guard let service = peripheral.services?.first(where: { $0.uuid == serviceUUID }) else {
+            throw NSError(domain: "ColmiR02Client", code: 2, userInfo: [NSLocalizedDescriptionKey: "Service \(serviceUUID) not found for reading characteristic \(characteristicUUID)"])
+        }
+        guard let characteristic = service.characteristics?.first(where: { $0.uuid == characteristicUUID }) else {
+            throw NSError(domain: "ColmiR02Client", code: 2, userInfo: [NSLocalizedDescriptionKey: "Characteristic \(characteristicUUID) not found in service \(serviceUUID)"])
+        }
+
+        return try await withCheckedThrowingContinuation { continuation in
+            characteristicReadContinuations[characteristic.uuid] = continuation
+            peripheral.readValue(for: characteristic)
+        }
+    }
+
+    func getDeviceInfo() async throws -> [String: String] {
+        guard connectedPeripheral != nil else {
+            throw NSError(domain: "ColmiR02Client", code: 1, userInfo: [NSLocalizedDescriptionKey: "Not connected"])
+        }
+        // Ensure services and characteristics are discovered. This might require prior discovery.
+        // Assuming discovery has happened post-connection.
 
         var deviceInfo: [String: String] = [:]
 
-        func readCharacteristic(serviceUUID: CBUUID, characteristicUUID: CBUUID, key _: String, nextStep _: @escaping () -> Void) {
-            guard let service = peripheral.services?.first(where: { $0.uuid == serviceUUID }),
-                  let characteristic = service.characteristics?.first(where: { $0.uuid == characteristicUUID })
-            else {
-                completion(.failure(NSError(domain: "ColmiR02Client", code: 2, userInfo: [NSLocalizedDescriptionKey: "Service or Characteristic not found"])))
-                return
-            }
+        let hwVersionData = try await readCharacteristicValue(characteristicUUID: DEVICE_HW_VERSION_CHAR_UUID, serviceUUID: DEVICE_INFO_SERVICE_UUID)
+        deviceInfo["hw_version"] = String(data: hwVersionData, encoding: .utf8) ?? "Unknown"
 
-            peripheral.readValue(for: characteristic)
-            // This part needs a different continuation mechanism if we want getDeviceInfo to be async
-            // For now, keeping completion handler for getDeviceInfo due to direct characteristic reads
-            // Or, one could create a temporary continuation store for characteristic reads.
-            // To simplify this refactoring step, getDeviceInfo will remain completion-based.
-            // If converting, it would look like:
-            // Task {
-            //   let value = try await peripheral.readValue(for: characteristic) // Needs CBPeripheral async wrapper
-            //   deviceInfo[key] = String(data: value, encoding: .utf8) ?? "Unknown"
-            //   nextStep()
-            // }
-            // For now, we'll use a dummy command code for the existing responseQueue logic if it were to be adapted.
-            // However, the current responseQueue is for command responses, not characteristic value reads.
-            // This highlights that getDeviceInfo is different.
-            // Let's assume for now this part is not converted to async/await in this pass to keep focus.
-            // The original code used responseQueue[0xFF] for this, which was a workaround.
-            // A proper async wrapper for CBPeripheral.readValue(for:) would be needed.
-            // Sticking to the original completion handler for getDeviceInfo for now.
-            // To make it work with the new continuation system, we'd need a separate continuation manager for direct reads.
-            // This is out of scope for the primary async/await refactor of command/response.
-            // So, getDeviceInfo will remain as is or be marked as TODO for full async conversion.
-            // For the purpose of this refactoring, I will leave getDeviceInfo with its existing completion handler structure
-            // and not convert it to use responseContinuations, as it doesn't fit the command/response pattern.
-            // The user's original code for getDeviceInfo used a dummy command 0xFF in responseQueue.
-            // This was: self.responseQueue[0xFF] = [{ result in ... }]
-            // This will break with the new `responseContinuations: [UInt8: CheckedContinuation<Data, Error>]`
-            // I will comment out the responseQueue line for getDeviceInfo for now.
-            // A full async getDeviceInfo would require `peripheral.readValue(for:)` to be awaitable.
-            /*
-             self.responseContinuations[0xFF] = { result in // This line is problematic with new continuation type
-                 switch result {
-                 case let .success(data):
-                     deviceInfo[key] = String(data: data, encoding: .utf8) ?? "Unknown"
-                 case let .failure(error):
-                     completion(.failure(error))
-                     return
-                 }
-                 nextStep()
-             }]
-             */
-            // TODO: Refactor getDeviceInfo to be fully async using awaitable characteristic reads.
-        }
+        let fwVersionData = try await readCharacteristicValue(characteristicUUID: DEVICE_FW_VERSION_CHAR_UUID, serviceUUID: DEVICE_INFO_SERVICE_UUID)
+        deviceInfo["fw_version"] = String(data: fwVersionData, encoding: .utf8) ?? "Unknown"
 
-        readCharacteristic(serviceUUID: DEVICE_INFO_SERVICE_UUID, characteristicUUID: DEVICE_HW_VERSION_CHAR_UUID, key: "hw_version", nextStep: {
-            readCharacteristic(serviceUUID: DEVICE_INFO_SERVICE_UUID, characteristicUUID: DEVICE_FW_VERSION_CHAR_UUID, key: "fw_version", nextStep: {
-                completion(.success(deviceInfo))
-            })
-        })
+        return deviceInfo
     }
 
     func getBattery() async throws -> BatteryInfo {
@@ -452,16 +425,20 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
         heartRateLogParser.isTodayLog = Calendar.current.isDateInToday(targetDate)
 
         let subData = readHeartRatePacketSubData(target: targetDate)
-        // This command might involve multiple packets. The current async model is one request -> one response.
-        // Multi-packet responses need a more complex streaming or iterative await model.
-        // For now, assuming the first response contains enough info or the parser handles subsequent ones.
-        // This is a known limitation of simple CheckedContinuation for multi-packet responses.
-        let responseData = try await sendCommandAndWaitForResponse(command: 0x15, subData: subData) // CMD_READ_HEART_RATE = 21
-        if let log = heartRateLogParser.parse(packet: responseData) {
-            return log
-        } else {
-            // TODO: Handle multi-packet logs. This might require iterative calls or a streaming response.
-            throw NSError(domain: "ColmiR02Client", code: 4, userInfo: [NSLocalizedDescriptionKey: "Failed to parse heart rate log or log is multi-packet"])
+        let packet = makePacket(command: 0x15, subData: subData) // CMD_READ_HEART_RATE = 21
+
+        return try await withCheckedThrowingContinuation { continuation in
+            guard self.heartRateLogContinuation == nil else {
+                continuation.resume(throwing: NSError(domain: "ColmiR02Client", code: 10, userInfo: [NSLocalizedDescriptionKey: "Another heart rate log request is already in progress."]))
+                return
+            }
+            self.heartRateLogContinuation = continuation
+            do {
+                try sendRawPacket(packet)
+            } catch {
+                self.heartRateLogContinuation = nil
+                continuation.resume(throwing: error)
+            }
         }
     }
 
@@ -519,14 +496,21 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
 
     func getSteps(dayOffset: Int = 0) async throws -> [SportDetail] {
         sportDetailParser.reset() // Reset parser for new steps request
-        var subData: [UInt8] = [UInt8(dayOffset), 0x0F, 0x00, 0x5F, 0x01]
-        // This command might involve multiple packets. Similar to heart rate log.
-        let responseData = try await sendCommandAndWaitForResponse(command: 0x43, subData: subData) // CMD_GET_STEP_SOMEDAY = 67
-        if let details = sportDetailParser.parse(packet: responseData) { // Parser needs to handle multi-packet logic internally
-            return details
-        } else {
-            // TODO: Handle multi-packet step data.
-            throw NSError(domain: "ColmiR02Client", code: 7, userInfo: [NSLocalizedDescriptionKey: "Failed to parse step data or data is multi-packet"])
+        let subData: [UInt8] = [UInt8(dayOffset), 0x0F, 0x00, 0x5F, 0x01]
+        let packet = makePacket(command: 0x43, subData: subData) // CMD_GET_STEP_SOMEDAY = 67
+
+        return try await withCheckedThrowingContinuation { continuation in
+            guard self.sportDetailContinuation == nil else {
+                continuation.resume(throwing: NSError(domain: "ColmiR02Client", code: 11, userInfo: [NSLocalizedDescriptionKey: "Another get steps request is already in progress."]))
+                return
+            }
+            self.sportDetailContinuation = continuation
+            do {
+                try sendRawPacket(packet)
+            } catch {
+                self.sportDetailContinuation = nil
+                continuation.resume(throwing: error)
+            }
         }
     }
 
@@ -610,6 +594,8 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
         for service in services {
             if service.uuid == UART_SERVICE_UUID {
                 peripheral.discoverCharacteristics([UART_RX_CHAR_UUID, UART_TX_CHAR_UUID], for: service)
+            } else if service.uuid == DEVICE_INFO_SERVICE_UUID { // Ensure we discover characteristics for Device Info service
+                peripheral.discoverCharacteristics([DEVICE_HW_VERSION_CHAR_UUID, DEVICE_FW_VERSION_CHAR_UUID], for: service)
             }
         }
     }
@@ -647,9 +633,17 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
         print("Received data from TX characteristic: \(value.hexEncodedString())")
         receivedData = value.hexEncodedString() // Update published property
 
+        // 1. Handle characteristic read continuations
+        if let charReadContinuation = characteristicReadContinuations.removeValue(forKey: characteristic.uuid) {
+            charReadContinuation.resume(returning: value)
+            return
+        }
+
         let packetType = value[0]
 
-        if packetType == 105 { // Special handling for CMD_START_REAL_TIME (105) responses
+        // 2. Handle command-specific multi-packet logic or special single-packet logic
+
+        if packetType == 105 { // CMD_START_REAL_TIME (105) - specific ACK then data handling
             if let continuation = responseContinuations[packetType] { // Check if continuation exists
                 if let reading = PacketParser.parseRealTimeReadingData(packet: value) {
                     if reading.value != 0 { // We got a non-zero value, this is likely the actual data
@@ -671,17 +665,49 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
                 // This could be an unsolicited update after the first data packet was processed.
                 print("Received unsolicited real-time data (type 105) or continuation already handled: \(value.hexEncodedString())")
             }
-        } else if let continuation = responseContinuations.removeValue(forKey: packetType) { // Standard handling for other commands
-            continuation.resume(returning: value)
-        } else if packetType == 21, heartRateLogParser.size > 0, !heartRateLogParser.end { // CMD_READ_HEART_RATE for multi-packet
-            // Special handling for multi-packet heart rate logs if not using continuation for each packet
-            if let log = heartRateLogParser.parse(packet: value) {
-                print("HeartRateLogParser processed subsequent packet.")
+        } else if packetType == 21, let hrContinuation = heartRateLogContinuation { // CMD_READ_HEART_RATE (multi-packet)
+            let parsedLog = heartRateLogParser.parse(packet: value)
+            if heartRateLogParser.end {
+                heartRateLogContinuation = nil // Clear before resuming
+                if let log = parsedLog {
+                    hrContinuation.resume(returning: log)
+                } else {
+                    // Parser indicated end, but no log object (e.g., error 255 from device)
+                    hrContinuation.resume(throwing: NSError(domain: "ColmiR02Client", code: 4, userInfo: [NSLocalizedDescriptionKey: "Failed to parse heart rate log or device reported error."]))
+                }
+            } else if parsedLog != nil {
+                // Parser returned a log, but 'end' is not true. This implies an intermediate log.
+                // Current setup expects one final log. If intermediate logs are needed, this requires redesign.
+                print("HeartRateLogParser returned intermediate log, but 'end' is false. Waiting for final log.")
+            } else {
+                // No log object returned, and not the end. Parser is accumulating.
+                print("HeartRateLogParser processed packet, waiting for more.")
             }
-        } else if packetType == 67, sportDetailParser.index > 0 { // CMD_GET_STEP_SOMEDAY for multi-packet
-            print("SportDetailParser processed subsequent packet.")
+        } else if packetType == 67, let stepsContinuation = sportDetailContinuation { // CMD_GET_STEP_SOMEDAY (multi-packet)
+            let originalIndexIsZero = sportDetailParser.index == 0 // Check before parse resets index on NoData
+            let parsedDetails = sportDetailParser.parse(packet: value)
+
+            if let details = parsedDetails {
+                sportDetailContinuation = nil // Clear before resuming
+                stepsContinuation.resume(returning: details)
+            } else {
+                // parsedDetails is nil. Check if it was a "NoData" scenario.
+                // packet[1] == 255 is the NoData indicator from device for command 67.
+                if originalIndexIsZero, value.count > 1, value[1] == 255 {
+                    sportDetailContinuation = nil // Clear before resuming
+                    stepsContinuation.resume(throwing: NoData())
+                } else {
+                    // Not NoData, and not complete. Parser is accumulating.
+                    print("SportDetailParser processed packet, waiting for more.")
+                }
+            }
+            // 3. Handle general single-packet command/response continuations
+        } else if let continuation = responseContinuations.removeValue(forKey: packetType) {
+            continuation.resume(returning: value)
+            // 4. Unhandled data
         } else {
             print("No continuation found for packet type \(packetType). Data: \(value.hexEncodedString())")
+            // This could also be an unsolicited notification from the device.
         }
     }
 
