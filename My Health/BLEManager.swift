@@ -609,6 +609,9 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
         // Attempt to reconnect if it was an unexpected disconnection from the target peripheral
         if error != nil, peripheral.identifier.uuidString == address {
             print("Unexpected disconnection from \(peripheralName). Attempting to reconnect...")
+            // Re-assign to self.connectedPeripheral to maintain a strong reference to the peripheral
+            // during the connection attempt, as required by Core Bluetooth.
+            connectedPeripheral = peripheral
             centralManager.connect(peripheral, options: nil)
         }
     }
