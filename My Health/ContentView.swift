@@ -48,44 +48,74 @@ struct ScanningView: View {
     @ObservedObject var bleManager: ColmiR02Client
 
     var body: some View {
-        VStack {
-            Text("Bluetooth Device Scanning")
-                .font(.title)
+        NavigationView {
+            VStack {
+                if bleManager.isScanning {
+                    ProgressView("Scanning for devices...")
+                        .padding()
+                } else {
+                    Button(action: {
+                        bleManager.startScanning()
+                    }) {
+                        Label("Start Scan", systemImage: "magnifyingglass")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .padding(.horizontal)
 
-            if bleManager.isScanning {
-                ProgressView("Scanning for devices...")
-            } else {
-                Button("Start Scan") {
-                    bleManager.startScanning()
-                }
-            }
-
-            List(bleManager.discoveredPeripherals, id: \.identifier) { peripheral in
-                HStack {
-                    Text(peripheral.name ?? "Unknown Device")
-                    Spacer()
-                    Button("Connect") {
-                        bleManager.connect(peripheral: peripheral)
+                    if bleManager.connectedPeripheral == nil, !bleManager.address.isEmpty {
+                        Button(action: {
+                            bleManager.reconnectToLastDevice()
+                        }) {
+                            Label("Reconnect to Last Ring", systemImage: "arrow.clockwise.circle")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .padding(.horizontal)
                     }
                 }
-            }
 
-            if bleManager.connectedPeripheral != nil {
-                Text("Connected to: \(bleManager.connectedPeripheral?.name ?? "Device")")
-                Button("Disconnect") {
-                    bleManager.disconnect()
+                List(bleManager.discoveredPeripherals, id: \.identifier) { peripheral in
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text(peripheral.name ?? "Unknown Device")
+                                .font(.headline)
+                            Text(peripheral.identifier.uuidString)
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
+                        Spacer()
+                        Button("Connect") {
+                            bleManager.connect(peripheral: peripheral)
+                        }
+                        .buttonStyle(.bordered)
+                    }
                 }
-            }
+                .listStyle(.insetGrouped)
 
-            Text("Raw Data: \(bleManager.receivedData)") // Debug display
+                if let connectedPeripheral = bleManager.connectedPeripheral {
+                    VStack {
+                        Text("Connected to: \(connectedPeripheral.name ?? "Device")")
+                            .font(.headline)
+                            .padding(.top)
+                        Button("Disconnect") {
+                            bleManager.disconnect()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.red)
+                    }
+                    .padding()
+                }
+
+                // Text("Raw Data: \(bleManager.receivedData)") // Debug display - consider removing or placing elsewhere
+            }
+            .navigationTitle("Device Scanning")
         }
-        .padding()
     }
 }
 
 struct DataDisplayView: View {
     @ObservedObject var bleManager: ColmiR02Client
-
     @Environment(\.modelContext) private var modelContext
     @Query private var heartRateData: [HeartRateData]
     @Query private var bloodOxygenData: [BloodOxygenData]
@@ -93,55 +123,68 @@ struct DataDisplayView: View {
     @State private var batteryInfoString: String = "N/A"
 
     var body: some View {
-        VStack {
-            Text("Info")
-                .font(.title)
+        NavigationView {
             List {
-                Text("Battery: \(batteryInfoString)")
-                Button("Get Battery") {
-                    Task {
-                        do {
-                            let batteryInfo = try await bleManager.getBattery()
-                            batteryInfoString = "\(batteryInfo.batteryLevel)% (Charging: \(batteryInfo.charging ? "Yes" : "No"))"
-                        } catch {
-                            batteryInfoString = "Error: \(error.localizedDescription)"
+                Section("Device Information") {
+                    HStack {
+                        Text("Battery:")
+                        Spacer()
+                        Text(batteryInfoString)
+                    }
+                    Button("Refresh Battery Status") {
+                        Task {
+                            do {
+                                let batteryInfo = try await bleManager.getBattery()
+                                batteryInfoString = "\(batteryInfo.batteryLevel)% (Charging: \(batteryInfo.charging ? "Yes" : "No"))"
+                            } catch {
+                                batteryInfoString = "Error: \(error.localizedDescription)"
+                            }
+                        }
+                    }
+                    Button("Log Current Health Data") {
+                        Task {
+                            await HealthDataLogger.shared.logCurrentHealthData(
+                                bleManager: bleManager, modelContext: modelContext
+                            )
                         }
                     }
                 }
-                Button("Log Data Now") {
-                    Task {
-                        await HealthDataLogger.shared.logCurrentHealthData(
-                            bleManager: bleManager, modelContext: modelContext
-                        )
-                    }
-                }
-            }
-            Text("Logged Data")
-                .font(.title)
 
-            List {
-                Section("Heart Rate") {
+                Section("Logged Heart Rate") {
                     ForEach(heartRateData) { data in
                         HStack {
                             Text("Time: \(data.timestamp, style: .time)")
                             Spacer()
                             Text("\(data.heartRate) bpm")
                         }
-                    }
+                    }.onDelete(perform: deleteHeartRateData)
                 }
-                Section("Blood Oxygen") {
+
+                Section("Logged Blood Oxygen") {
                     ForEach(bloodOxygenData) { data in
                         HStack {
                             Text("Time: \(data.timestamp, style: .time)")
                             Spacer()
-                            Text("\(data.bloodOxygen) blood oxygen")
+                            Text("\(data.bloodOxygen)%")
                         }
-                    }
+                    }.onDelete(perform: deleteBloodOxygenData)
                 }
-                // ... Display other data types
             }
+            .listStyle(.insetGrouped)
+            .navigationTitle("Health Data")
         }
-        .padding()
+    }
+
+    private func deleteHeartRateData(offsets: IndexSet) {
+        withAnimation {
+            offsets.map { heartRateData[$0] }.forEach(modelContext.delete)
+        }
+    }
+
+    private func deleteBloodOxygenData(offsets: IndexSet) {
+        withAnimation {
+            offsets.map { bloodOxygenData[$0] }.forEach(modelContext.delete)
+        }
     }
 }
 
@@ -149,17 +192,21 @@ struct SettingsView: View {
     @Binding var healthKitAuthorized: Bool
 
     var body: some View {
-        VStack {
-            Text("Settings")
-                .font(.title)
-            HStack {
-                Text("HealthKit Access:")
-                Spacer()
-                Text(healthKitAuthorized ? "Granted" : "Not Granted")
+        NavigationView {
+            List {
+                Section("Integrations") {
+                    HStack {
+                        Text("HealthKit Access")
+                        Spacer()
+                        Text(healthKitAuthorized ? "Granted" : "Not Granted")
+                            .foregroundColor(healthKitAuthorized ? .green : .red)
+                    }
+                }
+                // Add other settings sections and options here
             }
-            // ... Add other settings options
+            .listStyle(.insetGrouped)
+            .navigationTitle("Settings")
         }
-        .padding()
     }
 }
 

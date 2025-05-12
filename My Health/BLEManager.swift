@@ -329,6 +329,37 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
         txCharacteristic = nil
     }
 
+    func reconnectToLastDevice() {
+        guard centralManager.state == .poweredOn else {
+            print("Bluetooth is not powered on. Cannot reconnect.")
+            return
+        }
+
+        guard connectedPeripheral == nil else {
+            print("Already connected or a connection attempt is in progress.")
+            return
+        }
+
+        guard !address.isEmpty, let peripheralUUID = UUID(uuidString: address) else {
+            print("No valid last device address available for reconnection: \(address). Scan for devices.")
+            return
+        }
+
+        print("Attempting to retrieve peripheral with UUID: \(peripheralUUID.uuidString)")
+        let knownPeripherals = centralManager.retrievePeripherals(withIdentifiers: [peripheralUUID])
+
+        if let peripheralToReconnect = knownPeripherals.first {
+            print("Found peripheral \(peripheralToReconnect.name ?? peripheralUUID.uuidString). Attempting to connect...")
+            // Hold a strong reference to the peripheral by assigning it to an instance property
+            // before initiating the connection. This prevents it from being deallocated.
+            connectedPeripheral = peripheralToReconnect
+            // The connect method already handles stopping scan if active.
+            connect(peripheral: peripheralToReconnect)
+        } else {
+            print("Could not retrieve peripheral with UUID \(address). The device might be out of range, not advertising, or not known to the system. Please scan for devices.")
+        }
+    }
+
     private func sendRawPacket(_ packetData: Data) throws {
         guard let peripheral = connectedPeripheral, let rxChar = rxCharacteristic else {
             throw NSError(domain: "ColmiR02Client", code: 1, userInfo: [NSLocalizedDescriptionKey: "Not connected or RX Characteristic not found"])
