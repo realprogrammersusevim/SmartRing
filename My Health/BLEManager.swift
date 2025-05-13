@@ -275,6 +275,7 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
     private var heartRateLogParser = HeartRateLogParser()
     private var heartRateLogContinuation: CheckedContinuation<HeartRateLog, Error>?
 
+    private var connectionContinuation: CheckedContinuation<Void, Error>?
     private var sportDetailParser = SportDetailParser()
     private var sportDetailContinuation: CheckedContinuation<[SportDetail], Error>?
     private var characteristicReadContinuations: [CBUUID: CheckedContinuation<Data, Error>] = [:]
@@ -327,6 +328,8 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
         // connectedPeripheral will be set to nil in didDisconnectPeripheral delegate method
         rxCharacteristic = nil
         txCharacteristic = nil
+        let disconnectError = NSError(domain: "ColmiR02Client", code: 94, userInfo: [NSLocalizedDescriptionKey: "Connection cancelled or peripheral disconnected."])
+        failAllPendingContinuations(with: disconnectError)
     }
 
     func reconnectToLastDevice() {
@@ -381,6 +384,54 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
             } catch {
                 responseContinuations.removeValue(forKey: command)
                 continuation.resume(throwing: error)
+            }
+        }
+    }
+
+    func connectAndPrepare() async throws {
+        // Wait for Bluetooth to be powered on if it's not already
+        if centralManager.state != .poweredOn {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                let waitForPowerOn = Task {
+                    // Wait for up to 5 seconds for Bluetooth to power on
+                    for _ in 0..<50 {
+                        if centralManager.state == .poweredOn {
+                            continuation.resume()
+                            return
+                        }
+                        try await Task.sleep(nanoseconds: 100_000_000) // 0.1 second
+                    }
+                    continuation.resume(throwing: NSError(domain: "ColmiR02Client", code: 99, userInfo: [NSLocalizedDescriptionKey: "Bluetooth did not power on within timeout period."]))
+                }
+                
+                // If the task is cancelled, clean up
+                Task {
+                    try await waitForPowerOn.value
+                }
+            }
+        }
+
+        if isConnected, rxCharacteristic != nil, txCharacteristic != nil {
+            return // Already ready
+        }
+
+        guard !address.isEmpty, let peripheralUUID = UUID(uuidString: address) else {
+            throw NSError(domain: "ColmiR02Client", code: 98, userInfo: [NSLocalizedDescriptionKey: "No valid device address for connection."])
+        }
+
+        return try await withCheckedThrowingContinuation { continuation in
+            self.connectionContinuation = continuation
+
+            let knownPeripherals = centralManager.retrievePeripherals(withIdentifiers: [peripheralUUID])
+            if let peripheralToConnect = knownPeripherals.first {
+                // Hold a strong reference if not already connected to this peripheral
+                if self.connectedPeripheral?.identifier != peripheralToConnect.identifier {
+                    self.connectedPeripheral = peripheralToConnect
+                }
+                centralManager.connect(peripheralToConnect, options: nil)
+            } else {
+                self.connectionContinuation = nil
+                continuation.resume(throwing: NSError(domain: "ColmiR02Client", code: 97, userInfo: [NSLocalizedDescriptionKey: "Peripheral not found or not retrievable."]))
             }
         }
     }
@@ -557,6 +608,40 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
         try await sendCommandAndWaitForResponse(command: commandCode, subData: subData)
     }
 
+    private func failAllPendingContinuations(with error: Error) {
+        // Connection continuation
+        if let cont = connectionContinuation {
+            connectionContinuation = nil
+            cont.resume(throwing: error)
+        }
+
+        // Command response continuations
+        let commandContinuationsToFail = responseContinuations
+        responseContinuations.removeAll() // Clear before resuming to prevent re-entry issues
+        for (_, cont) in commandContinuationsToFail {
+            cont.resume(throwing: error)
+        }
+
+        // Heart rate log continuation
+        if let cont = heartRateLogContinuation {
+            heartRateLogContinuation = nil
+            cont.resume(throwing: error)
+        }
+
+        // Sport detail continuation
+        if let cont = sportDetailContinuation {
+            sportDetailContinuation = nil
+            cont.resume(throwing: error)
+        }
+
+        // Characteristic read continuations
+        let charReadContinuationsToFail = characteristicReadContinuations
+        characteristicReadContinuations.removeAll() // Clear before resuming
+        for (_, cont) in charReadContinuationsToFail {
+            cont.resume(throwing: error)
+        }
+    }
+
     // MARK: - CBCentralManagerDelegate
 
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
@@ -593,12 +678,16 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
         if connectedPeripheral?.identifier == peripheral.identifier {
             connectedPeripheral = nil
         }
+        failAllPendingContinuations(with: error ?? NSError(domain: "ColmiR02Client", code: 96, userInfo: [NSLocalizedDescriptionKey: "Failed to connect."]))
     }
 
     func centralManager(_: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         let peripheralName = peripheral.name ?? "Unknown Device"
         let peripheralID = peripheral.identifier.uuidString
         print("Disconnected from peripheral: \(peripheralName) (\(peripheralID)), error: \(error?.localizedDescription ?? "N/A")")
+
+        let disconnectError = error ?? NSError(domain: "ColmiR02Client", code: 95, userInfo: [NSLocalizedDescriptionKey: "Unexpected peripheral disconnection."])
+        failAllPendingContinuations(with: disconnectError)
 
         if connectedPeripheral?.identifier == peripheral.identifier {
             connectedPeripheral = nil
@@ -621,6 +710,8 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         if let error {
             print("Error discovering services: \(error.localizedDescription)")
+            // If service discovery fails, the connection process might be stalled.
+            failAllPendingContinuations(with: error)
             return
         }
 
@@ -637,6 +728,8 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
     func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
         if let error {
             print("Error discovering characteristics: \(error.localizedDescription)")
+            // If characteristic discovery fails, the connection process might be stalled.
+            failAllPendingContinuations(with: error)
             return
         }
 
@@ -650,12 +743,26 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
                 peripheral.setNotifyValue(true, for: characteristic)
                 print("TX Characteristic found and set to notify")
             }
+            // Inside the loop, after finding both RX and TX for UART_SERVICE_UUID
+            if service.uuid == UART_SERVICE_UUID, rxCharacteristic != nil, txCharacteristic != nil {
+                connectionContinuation?.resume(returning: ())
+                connectionContinuation = nil
+            }
         }
     }
 
     func peripheral(_: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         if let error {
             print("Error updating value for characteristic \(characteristic.uuid): \(error.localizedDescription)")
+            // If this error is on the TX characteristic (main response channel), fail all pending command continuations.
+            if characteristic.uuid == txCharacteristic?.uuid {
+                failAllPendingContinuations(with: error)
+            } else {
+                // If it's for a specific characteristic read, fail that one.
+                if let charReadContinuation = characteristicReadContinuations.removeValue(forKey: characteristic.uuid) {
+                    charReadContinuation.resume(throwing: error)
+                }
+            }
             return
         }
 
@@ -748,6 +855,8 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
     func peripheral(_: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
         if let error {
             print("Error updating notification state for characteristic \(characteristic.uuid): \(error.localizedDescription)")
+            // If this is for the TX characteristic, it could impact command responses.
+            // Consider if failAllPendingContinuations is needed here if characteristic.uuid == txCharacteristic?.uuid
             return
         }
 
