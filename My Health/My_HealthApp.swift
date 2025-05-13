@@ -66,37 +66,48 @@ struct My_HealthApp: App {
         }
     }
 
+    // Shared function to perform the health data logging operation
+    private static func performHealthDataLoggingOperation(
+        healthDataLogger: HealthDataLogger,
+        modelContainer: ModelContainer,
+        deviceAddress: String,
+        operationIdentifier: String
+    ) async throws {
+        print("\(operationIdentifier): Performing health data logging operation for address: \(deviceAddress)")
+        let context = ModelContext(modelContainer)
+        let ringManager = ColmiR02Client(address: deviceAddress)
+
+        // Adding a small delay that was previously in the foreground timer logic,
+        // right after client initialization and before connectAndPrepare.
+        // This might help ensure the CBCentralManager (initialized within ColmiR02Client)
+        // has settled before proceeding with connection attempts.
+        try await Task.sleep(nanoseconds: 500_000_000) // 0.5 second delay
+
+        defer {
+            // Ensure disconnection happens even if an error occurs during the operation,
+            // but after all awaited operations within the main body of the function complete.
+            print("\(operationIdentifier): Operation complete. Disconnecting ColmiR02Client.")
+            ringManager.disconnect()
+        }
+
+        print("\(operationIdentifier): Attempting to connect and prepare ColmiR02Client.")
+        try await ringManager.connectAndPrepare()
+        print("\(operationIdentifier): ColmiR02Client connected and prepared. Logging health data.")
+        await healthDataLogger.logCurrentHealthData(bleManager: ringManager, modelContext: context)
+        print("\(operationIdentifier): Health data logging operation successful.")
+    }
+
     // Static method to start the foreground timer
     static func startForegroundLogTimer(healthDataLogger: HealthDataLogger, modelContainer: ModelContainer) {
-        appForegroundLogTimer?.invalidate() // Invalidate existing timer just in case
+        appForegroundLogTimer?.invalidate()
 
         let logAction = {
             Task {
-                print("Foreground timer: Logging health data.")
-                // Create a new ModelContext for this operation.
-                let context = ModelContext(modelContainer)
-
-                // Use stored address, fallback to default if not found
                 let deviceAddress = DeviceSettingsManager.shared.getTargetDeviceAddress()
-
-                // Create the BLE manager outside the task to give it time to initialize
-                let ringManager = ColmiR02Client(address: deviceAddress) // Creates a new client for this operation
-
                 do {
-                    // Add a small delay to allow the BLE manager to initialize
-                    try await Task.sleep(nanoseconds: 500_000_000) // 0.5 second delay
-
-                    // Connect to the device first
-                    try await ringManager.connectAndPrepare()
-
-                    // Now log the health data
-                    await healthDataLogger.logCurrentHealthData(bleManager: ringManager, modelContext: context)
-                    print("Foreground timer: Health data logging complete.")
-
-                    // Disconnect when done
-                    ringManager.disconnect()
+                    try await Self.performHealthDataLoggingOperation(healthDataLogger: healthDataLogger, modelContainer: modelContainer, deviceAddress: deviceAddress, operationIdentifier: "ForegroundTimer")
                 } catch {
-                    print("Foreground timer: Failed to connect or log data: \(error.localizedDescription)")
+                    print("ForegroundTimer: Failed to log data: \(error.localizedDescription)")
                 }
             }
         }
@@ -104,11 +115,10 @@ struct My_HealthApp: App {
         // Perform an initial log right away when app becomes active / timer starts
         logAction()
 
-        // Schedule a new timer for repeated logging
         appForegroundLogTimer = Timer.scheduledTimer(withTimeInterval: BG_INTERVAL, repeats: true) { _ in
             logAction()
         }
-        print("Foreground health data log timer started. Will fire every \(BG_INTERVAL.description) after an initial log.")
+        print("Foreground health data log timer started. Will fire every \(BG_INTERVAL) seconds after an initial log.")
     }
 
     // Static method to stop the foreground timer
@@ -145,45 +155,35 @@ struct My_HealthApp: App {
         scheduleHealthDataLogTask() // Instance method call
 
         // Create a new ModelContainer and ModelContext for this background task
+        // Note: The original code created a modelContext here but it wasn't directly used if the logging function creates its own.
+        // The new shared function `performHealthDataLoggingOperation` creates its own ModelContext from the passed ModelContainer.
         let schema = Schema([HeartRateData.self, BloodOxygenData.self])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-        guard let container = try? ModelContainer(for: schema, configurations: [modelConfiguration])
+        guard let backgroundModelContainer = try? ModelContainer(for: schema, configurations: [modelConfiguration])
         else {
-            print("Background task: Failed to create ModelContainer.")
+            print("BackgroundTask: Failed to create ModelContainer.")
             task.setTaskCompleted(success: false)
             return
         }
-        let modelContext = ModelContext(container)
 
         // Use stored address for background tasks, fallback to default if not found
         let deviceAddressForBackgroundTask = DeviceSettingsManager.shared.getTargetDeviceAddress()
         // Use the instance's healthDataLogger (which is HealthDataLogger.shared)
         let currentHealthDataLogger = healthDataLogger
-        let ringManager = ColmiR02Client(address: deviceAddressForBackgroundTask)
 
         task.expirationHandler = {
-            print("Background task \(backgroundTaskIdentifier) expired.")
-            // ringManager.disconnect() // Consider disconnecting if appropriate
+            print("BackgroundTask (\(backgroundTaskIdentifier)): Expired.")
+            // Disconnection is handled by the defer block in performHealthDataLoggingOperation
             task.setTaskCompleted(success: false)
         }
 
         Task {
-            defer {
-                // Ensure the client is disconnected after the background work is done or if an error occurs
-                print("Background task: Disconnecting ColmiR02Client.")
-                ringManager.disconnect()
-            }
             do {
-                print("Background task: Attempting to connect and prepare ColmiR02Client.")
-                try await ringManager.connectAndPrepare() // Wait for connection and readiness
-                print("Background task: ColmiR02Client connected and prepared. Logging health data.")
-
-                await currentHealthDataLogger.logCurrentHealthData(bleManager: ringManager, modelContext: modelContext)
-
-                print("Background task \(backgroundTaskIdentifier) work finished processing.")
+                try await My_HealthApp.performHealthDataLoggingOperation(healthDataLogger: currentHealthDataLogger, modelContainer: backgroundModelContainer, deviceAddress: deviceAddressForBackgroundTask, operationIdentifier: "BackgroundTask")
+                print("BackgroundTask (\(backgroundTaskIdentifier)): Work finished successfully.")
                 task.setTaskCompleted(success: true)
             } catch {
-                print("Background task: Failed to connect or log data: \(error.localizedDescription)")
+                print("BackgroundTask (\(backgroundTaskIdentifier)): Failed to log data: \(error.localizedDescription)")
                 task.setTaskCompleted(success: false)
             }
         }
