@@ -124,7 +124,53 @@ struct HeartRateLog {
     }
 }
 
-class NoData: Error {} // Representing NoData from Python
+// MARK: - Custom Error Type
+
+enum BLEManagerError: Error, LocalizedError {
+    case bluetoothNotPoweredOn
+    case connectionTimeout(String)
+    case invalidDeviceAddress(String)
+    case peripheralNotFound(String)
+    case notConnected
+    case serviceNotFound(CBUUID)
+    case characteristicNotFound(CBUUID, CBUUID) // characteristicUUID, serviceUUID
+    case failedToParseData(String)
+    case operationInProgress(String)
+    case deviceReportedError(String)
+    case connectionCancelled
+    case failedToConnect(Error?)
+    case unexpectedDisconnect(Error?)
+    case serviceDiscoveryFailed(Error)
+    case characteristicDiscoveryFailed(Error)
+    case notificationUpdateFailed(Error)
+    case sendPacketFailed(Error?)
+    case noDataAvailable
+    case unknown(Error?)
+
+    var errorDescription: String? {
+        switch self {
+        case .bluetoothNotPoweredOn: "Bluetooth is not powered on."
+        case let .connectionTimeout(message): "Connection timed out: \(message)"
+        case let .invalidDeviceAddress(address): "Invalid device address: \(address)."
+        case let .peripheralNotFound(identifier): "Peripheral not found with identifier: \(identifier)."
+        case .notConnected: "Not connected to a peripheral."
+        case let .serviceNotFound(uuid): "Service \(uuid.uuidString) not found."
+        case let .characteristicNotFound(charUUID, serviceUUID): "Characteristic \(charUUID.uuidString) not found in service \(serviceUUID.uuidString)."
+        case let .failedToParseData(dataType): "Failed to parse \(dataType) data."
+        case let .operationInProgress(operation): "\(operation) is already in progress."
+        case let .deviceReportedError(message): "Device reported an error: \(message)."
+        case .connectionCancelled: "Connection cancelled or peripheral disconnected."
+        case let .failedToConnect(underlyingError): "Failed to connect to peripheral. \(underlyingError?.localizedDescription ?? "")"
+        case let .unexpectedDisconnect(underlyingError): "Unexpected peripheral disconnection. \(underlyingError?.localizedDescription ?? "")"
+        case let .serviceDiscoveryFailed(error): "Error discovering services: \(error.localizedDescription)."
+        case let .characteristicDiscoveryFailed(error): "Error discovering characteristics: \(error.localizedDescription)."
+        case let .notificationUpdateFailed(error): "Error updating notification state: \(error.localizedDescription)."
+        case let .sendPacketFailed(error): "Failed to send packet. \(error?.localizedDescription ?? "")"
+        case .noDataAvailable: "No data available from the device for this request."
+        case let .unknown(error): "An unknown error occurred. \(error?.localizedDescription ?? "")"
+        }
+    }
+}
 
 // MARK: - Packet Handling Functions (Based on packet.py)
 
@@ -328,8 +374,7 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
         // connectedPeripheral will be set to nil in didDisconnectPeripheral delegate method
         rxCharacteristic = nil
         txCharacteristic = nil
-        let disconnectError = NSError(domain: "ColmiR02Client", code: 94, userInfo: [NSLocalizedDescriptionKey: "Connection cancelled or peripheral disconnected."])
-        failAllPendingContinuations(with: disconnectError)
+        failAllPendingContinuations(with: BLEManagerError.connectionCancelled)
     }
 
     func reconnectToLastDevice() {
@@ -365,7 +410,7 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
 
     private func sendRawPacket(_ packetData: Data) throws {
         guard let peripheral = connectedPeripheral, let rxChar = rxCharacteristic else {
-            throw NSError(domain: "ColmiR02Client", code: 1, userInfo: [NSLocalizedDescriptionKey: "Not connected or RX Characteristic not found"])
+            throw BLEManagerError.notConnected
         }
         peripheral.writeValue(packetData, for: rxChar, type: .withoutResponse)
         print("Sent packet: \(packetData.hexEncodedString())")
@@ -375,7 +420,7 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
         let packet = makePacket(command: command, subData: subData)
         return try await withCheckedThrowingContinuation { continuation in
             guard connectedPeripheral != nil, rxCharacteristic != nil else {
-                continuation.resume(throwing: NSError(domain: "ColmiR02Client", code: 1, userInfo: [NSLocalizedDescriptionKey: "Not connected or RX Characteristic not found"]))
+                continuation.resume(throwing: BLEManagerError.notConnected)
                 return
             }
             responseContinuations[command] = continuation
@@ -383,7 +428,7 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
                 try sendRawPacket(packet)
             } catch {
                 responseContinuations.removeValue(forKey: command)
-                continuation.resume(throwing: error)
+                continuation.resume(throwing: BLEManagerError.sendPacketFailed(error))
             }
         }
     }
@@ -401,7 +446,7 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
                         }
                         try await Task.sleep(nanoseconds: 100_000_000) // 0.1 second
                     }
-                    continuation.resume(throwing: NSError(domain: "ColmiR02Client", code: 99, userInfo: [NSLocalizedDescriptionKey: "Bluetooth did not power on within timeout period."]))
+                    continuation.resume(throwing: BLEManagerError.connectionTimeout("Bluetooth did not power on"))
                 }
 
                 // If the task is cancelled, clean up
@@ -416,7 +461,7 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
         }
 
         guard !address.isEmpty, let peripheralUUID = UUID(uuidString: address) else {
-            throw NSError(domain: "ColmiR02Client", code: 98, userInfo: [NSLocalizedDescriptionKey: "No valid device address for connection."])
+            throw BLEManagerError.invalidDeviceAddress(address)
         }
 
         return try await withCheckedThrowingContinuation { continuation in
@@ -431,7 +476,7 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
                 centralManager.connect(peripheralToConnect, options: nil)
             } else {
                 self.connectionContinuation = nil
-                continuation.resume(throwing: NSError(domain: "ColmiR02Client", code: 97, userInfo: [NSLocalizedDescriptionKey: "Peripheral not found or not retrievable."]))
+                continuation.resume(throwing: BLEManagerError.peripheralNotFound(peripheralUUID.uuidString))
             }
         }
     }
@@ -440,13 +485,13 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
 
     private func readCharacteristicValue(characteristicUUID: CBUUID, serviceUUID: CBUUID) async throws -> Data {
         guard let peripheral = connectedPeripheral else {
-            throw NSError(domain: "ColmiR02Client", code: 1, userInfo: [NSLocalizedDescriptionKey: "Not connected"])
+            throw BLEManagerError.notConnected
         }
         guard let service = peripheral.services?.first(where: { $0.uuid == serviceUUID }) else {
-            throw NSError(domain: "ColmiR02Client", code: 2, userInfo: [NSLocalizedDescriptionKey: "Service \(serviceUUID) not found for reading characteristic \(characteristicUUID)"])
+            throw BLEManagerError.serviceNotFound(serviceUUID)
         }
         guard let characteristic = service.characteristics?.first(where: { $0.uuid == characteristicUUID }) else {
-            throw NSError(domain: "ColmiR02Client", code: 2, userInfo: [NSLocalizedDescriptionKey: "Characteristic \(characteristicUUID) not found in service \(serviceUUID)"])
+            throw BLEManagerError.characteristicNotFound(characteristicUUID, serviceUUID)
         }
 
         return try await withCheckedThrowingContinuation { continuation in
@@ -457,7 +502,7 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
 
     func getDeviceInfo() async throws -> [String: String] {
         guard connectedPeripheral != nil else {
-            throw NSError(domain: "ColmiR02Client", code: 1, userInfo: [NSLocalizedDescriptionKey: "Not connected"])
+            throw BLEManagerError.notConnected
         }
         // Ensure services and characteristics are discovered. This might require prior discovery.
         // Assuming discovery has happened post-connection.
@@ -476,7 +521,7 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
     func getBattery() async throws -> BatteryInfo {
         let responseData = try await sendCommandAndWaitForResponse(command: 0x03) // CMD_BATTERY = 3
         guard let batteryInfo = PacketParser.parseBatteryData(packet: responseData) else {
-            throw NSError(domain: "ColmiR02Client", code: 3, userInfo: [NSLocalizedDescriptionKey: "Failed to parse battery data"])
+            throw BLEManagerError.failedToParseData("battery")
         }
         return batteryInfo
     }
@@ -511,7 +556,7 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
 
         return try await withCheckedThrowingContinuation { continuation in
             guard self.heartRateLogContinuation == nil else {
-                continuation.resume(throwing: NSError(domain: "ColmiR02Client", code: 10, userInfo: [NSLocalizedDescriptionKey: "Another heart rate log request is already in progress."]))
+                continuation.resume(throwing: BLEManagerError.operationInProgress("Heart rate log request"))
                 return
             }
             self.heartRateLogContinuation = continuation
@@ -519,7 +564,7 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
                 try sendRawPacket(packet)
             } catch {
                 self.heartRateLogContinuation = nil
-                continuation.resume(throwing: error)
+                continuation.resume(throwing: BLEManagerError.sendPacketFailed(error))
             }
         }
     }
@@ -538,7 +583,7 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
     func getHeartRateLogSettings() async throws -> HeartRateLogSettings {
         let responseData = try await sendCommandAndWaitForResponse(command: 0x16, subData: [0x01]) // CMD_HEART_RATE_LOG_SETTINGS = 22, subcmd 1 for read
         guard let settings = PacketParser.parseHeartRateLogSettingsData(packet: responseData) else {
-            throw NSError(domain: "ColmiR02Client", code: 5, userInfo: [NSLocalizedDescriptionKey: "Failed to parse heart rate log settings"])
+            throw BLEManagerError.failedToParseData("heart rate log settings")
         }
         return settings
     }
@@ -571,7 +616,7 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
         }
 
         guard let reading = PacketParser.parseRealTimeReadingData(packet: responseData) else {
-            throw NSError(domain: "ColmiR02Client", code: 6, userInfo: [NSLocalizedDescriptionKey: "Failed to parse real-time reading data"])
+            throw BLEManagerError.failedToParseData("real-time reading")
         }
         return reading
     }
@@ -583,7 +628,7 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
 
         return try await withCheckedThrowingContinuation { continuation in
             guard self.sportDetailContinuation == nil else {
-                continuation.resume(throwing: NSError(domain: "ColmiR02Client", code: 11, userInfo: [NSLocalizedDescriptionKey: "Another get steps request is already in progress."]))
+                continuation.resume(throwing: BLEManagerError.operationInProgress("Get steps request"))
                 return
             }
             self.sportDetailContinuation = continuation
@@ -591,7 +636,7 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
                 try sendRawPacket(packet)
             } catch {
                 self.sportDetailContinuation = nil
-                continuation.resume(throwing: error)
+                continuation.resume(throwing: BLEManagerError.sendPacketFailed(error))
             }
         }
     }
@@ -678,7 +723,7 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
         if connectedPeripheral?.identifier == peripheral.identifier {
             connectedPeripheral = nil
         }
-        failAllPendingContinuations(with: error ?? NSError(domain: "ColmiR02Client", code: 96, userInfo: [NSLocalizedDescriptionKey: "Failed to connect."]))
+        failAllPendingContinuations(with: BLEManagerError.failedToConnect(error))
     }
 
     func centralManager(_: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
@@ -686,8 +731,7 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
         let peripheralID = peripheral.identifier.uuidString
         print("Disconnected from peripheral: \(peripheralName) (\(peripheralID)), error: \(error?.localizedDescription ?? "N/A")")
 
-        let disconnectError = error ?? NSError(domain: "ColmiR02Client", code: 95, userInfo: [NSLocalizedDescriptionKey: "Unexpected peripheral disconnection."])
-        failAllPendingContinuations(with: disconnectError)
+        failAllPendingContinuations(with: BLEManagerError.unexpectedDisconnect(error))
 
         if connectedPeripheral?.identifier == peripheral.identifier {
             connectedPeripheral = nil
@@ -711,7 +755,7 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
         if let error {
             print("Error discovering services: \(error.localizedDescription)")
             // If service discovery fails, the connection process might be stalled.
-            failAllPendingContinuations(with: error)
+            failAllPendingContinuations(with: BLEManagerError.serviceDiscoveryFailed(error))
             return
         }
 
@@ -729,7 +773,7 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
         if let error {
             print("Error discovering characteristics: \(error.localizedDescription)")
             // If characteristic discovery fails, the connection process might be stalled.
-            failAllPendingContinuations(with: error)
+            failAllPendingContinuations(with: BLEManagerError.characteristicDiscoveryFailed(error))
             return
         }
 
@@ -756,7 +800,7 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
             print("Error updating value for characteristic \(characteristic.uuid): \(error.localizedDescription)")
             // If this error is on the TX characteristic (main response channel), fail all pending command continuations.
             if characteristic.uuid == txCharacteristic?.uuid {
-                failAllPendingContinuations(with: error)
+                failAllPendingContinuations(with: BLEManagerError.unknown(error)) // Or a more specific error if identifiable
             } else {
                 // If it's for a specific characteristic read, fail that one.
                 if let charReadContinuation = characteristicReadContinuations.removeValue(forKey: characteristic.uuid) {
@@ -798,8 +842,7 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
                     }
                 } else { // parseRealTimeReadingData returned nil (e.g., error code in packet or malformed)
                     responseContinuations.removeValue(forKey: packetType) // Remove before resuming
-                    let parseError = NSError(domain: "ColmiR02Client", code: 6, userInfo: [NSLocalizedDescriptionKey: "Failed to parse real-time reading data or device reported error in packet."])
-                    continuation.resume(throwing: parseError)
+                    continuation.resume(throwing: BLEManagerError.failedToParseData("real-time reading or device error"))
                 }
             } else {
                 // No continuation, but we received a type 105 packet.
@@ -814,7 +857,7 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
                     hrContinuation.resume(returning: log)
                 } else {
                     // Parser indicated end, but no log object (e.g., error 255 from device)
-                    hrContinuation.resume(throwing: NSError(domain: "ColmiR02Client", code: 4, userInfo: [NSLocalizedDescriptionKey: "Failed to parse heart rate log or device reported error."]))
+                    hrContinuation.resume(throwing: BLEManagerError.failedToParseData("heart rate log or device error"))
                 }
             } else if parsedLog != nil {
                 // Parser returned a log, but 'end' is not true. This implies an intermediate log.
@@ -836,7 +879,7 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
                 // packet[1] == 255 is the NoData indicator from device for command 67.
                 if originalIndexIsZero, value.count > 1, value[1] == 255 {
                     sportDetailContinuation = nil // Clear before resuming
-                    stepsContinuation.resume(throwing: NoData())
+                    stepsContinuation.resume(throwing: BLEManagerError.noDataAvailable)
                 } else {
                     // Not NoData, and not complete. Parser is accumulating.
                     print("SportDetailParser processed packet, waiting for more.")
@@ -855,7 +898,7 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
     func peripheral(_: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
         if let error {
             print("Error updating notification state for characteristic \(characteristic.uuid): \(error.localizedDescription)")
-            // If this is for the TX characteristic, it could impact command responses.
+            failAllPendingContinuations(with: BLEManagerError.notificationUpdateFailed(error))
             // Consider if failAllPendingContinuations is needed here if characteristic.uuid == txCharacteristic?.uuid
             return
         }
