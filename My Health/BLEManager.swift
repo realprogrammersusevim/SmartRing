@@ -394,7 +394,7 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                 let waitForPowerOn = Task {
                     // Wait for up to 5 seconds for Bluetooth to power on
-                    for _ in 0..<50 {
+                    for _ in 0 ..< 50 {
                         if centralManager.state == .poweredOn {
                             continuation.resume()
                             return
@@ -403,7 +403,7 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
                     }
                     continuation.resume(throwing: NSError(domain: "ColmiR02Client", code: 99, userInfo: [NSLocalizedDescriptionKey: "Bluetooth did not power on within timeout period."]))
                 }
-                
+
                 // If the task is cancelled, clean up
                 Task {
                     try await waitForPowerOn.value

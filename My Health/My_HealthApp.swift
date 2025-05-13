@@ -78,21 +78,21 @@ struct My_HealthApp: App {
 
                 // Use stored address, fallback to default if not found
                 let deviceAddress = DeviceSettingsManager.shared.getTargetDeviceAddress()
-                
+
                 // Create the BLE manager outside the task to give it time to initialize
                 let ringManager = ColmiR02Client(address: deviceAddress) // Creates a new client for this operation
-                
+
                 do {
                     // Add a small delay to allow the BLE manager to initialize
                     try await Task.sleep(nanoseconds: 500_000_000) // 0.5 second delay
-                    
+
                     // Connect to the device first
                     try await ringManager.connectAndPrepare()
-                    
+
                     // Now log the health data
                     await healthDataLogger.logCurrentHealthData(bleManager: ringManager, modelContext: context)
                     print("Foreground timer: Health data logging complete.")
-                    
+
                     // Disconnect when done
                     ringManager.disconnect()
                 } catch {
