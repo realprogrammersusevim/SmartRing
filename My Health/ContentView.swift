@@ -142,6 +142,11 @@ struct DataDisplayView: View {
     }
 
     @State private var batteryCharging: Bool? = nil
+    @State private var hrLogSettingsEnabled: Bool = false
+    @State private var hrLogIntervalSelection: Int = 5 // Default interval
+    @State private var hrLogSettingsStatusMessage: String = "Tap 'Refresh' to load settings."
+    @State private var isLoadingHRLogSettings: Bool = false
+    let availableIntervals: [Int] = [5, 10, 15, 30, 60] // Common intervals in minutes
 
     var body: some View {
         NavigationView {
@@ -166,6 +171,7 @@ struct DataDisplayView: View {
                             }
                         }
                     }
+                    .disabled(bleManager.connectedPeripheral == nil)
                     Button("Log Current Health Data") {
                         Task {
                             await HealthDataLogger.shared.logCurrentHealthData(
@@ -173,9 +179,83 @@ struct DataDisplayView: View {
                             )
                         }
                     }
+                    .disabled(bleManager.connectedPeripheral == nil)
                 }
 
-                Section("Logged Data Chart") {}
+                Section("Historical Data") {
+                    Button("Fetch All Historical Heart Rate Data") {
+                        Task {
+                            print("Fetching all historical heart rate data...")
+                            let calendar = Calendar.current
+                            let today = calendar.startOfDay(for: Date())
+                            for i in 0 ..< 7 {
+                                if let targetDate = calendar.date(byAdding: .day, value: -i, to: today) {
+                                    do {
+                                        print("Fetching heart rate log for \(targetDate.formatted(date: .long, time: .omitted))...")
+                                        let heartRateLog = try await bleManager.getHeartRateLog(targetDate: targetDate)
+                                        if heartRateLog.size == 0 {
+                                            continue
+                                        }
+                                        print("Successfully fetched HeartRateLog for \(targetDate.formatted(date: .long, time: .omitted)):")
+                                        print("  Timestamp: \(heartRateLog.timestamp)")
+                                        print("  Size: \(heartRateLog.size)")
+                                        print("  Index: \(heartRateLog.index)")
+                                        print("  Range: \(heartRateLog.range)")
+                                        print("  Heart Rates with Times: \(heartRateLog.heartRatesWithTimes())")
+                                    } catch {
+                                        print("Error fetching heart rate log for \(targetDate.formatted(date: .long, time: .omitted)): \(error.localizedDescription)")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .disabled(bleManager.connectedPeripheral == nil)
+                }
+
+                Section("Heart Rate Log Settings") {
+                    if isLoadingHRLogSettings {
+                        HStack {
+                            ProgressView()
+                                .padding(.trailing, 5)
+                            Text("Accessing device...")
+                                .foregroundColor(.gray)
+                                .font(.caption)
+                        }
+                    } else if !hrLogSettingsStatusMessage.isEmpty {
+                        Text(hrLogSettingsStatusMessage)
+                            .font(.caption)
+                    }
+                    HStack {
+                        Text("Automatic Logging:")
+                        Spacer()
+                        Toggle("Enabled", isOn: $hrLogSettingsEnabled)
+                            .labelsHidden()
+                    }
+                    .disabled(bleManager.connectedPeripheral == nil)
+
+                    Picker("Logging Interval (minutes):", selection: $hrLogIntervalSelection) {
+                        ForEach(availableIntervals, id: \.self) { interval in
+                            Text("\(interval) min").tag(interval)
+                        }
+                    }
+                    .disabled(bleManager.connectedPeripheral == nil || !hrLogSettingsEnabled) // Also disable if logging is off
+
+                    Button("Refresh HR Log Settings") {
+                        Task {
+                            await fetchHRLogSettings()
+                        }
+                    }
+                    .disabled(bleManager.connectedPeripheral == nil)
+                    Button("Apply HR Log Settings") {
+                        Task {
+                            await applyHRLogSettings()
+                            await fetchHRLogSettings()
+                        }
+                    }
+                    .disabled(bleManager.connectedPeripheral == nil)
+                }
+
+                // Section("Logged Data Chart") {}
 
                 Section("Logged Heart Rate") {
                     ForEach(heartRateData) { data in
@@ -199,6 +279,48 @@ struct DataDisplayView: View {
             }
             .listStyle(.insetGrouped)
             .navigationTitle("Health Data")
+        }
+    }
+
+    private func fetchHRLogSettings() async {
+        guard bleManager.connectedPeripheral != nil else {
+            hrLogSettingsStatusMessage = "Not connected to device."
+            return
+        }
+        isLoadingHRLogSettings = true
+        hrLogSettingsStatusMessage = "" // Clear previous status, spinner will indicate loading
+
+        do {
+            let settings = try await bleManager.getHeartRateLogSettings()
+            hrLogSettingsEnabled = settings.enabled
+            if availableIntervals.contains(settings.interval) {
+                hrLogIntervalSelection = settings.interval
+            } else {
+                // If the interval from the device isn't in our list, default or handle as error
+                hrLogIntervalSelection = availableIntervals.first ?? 5 // Fallback
+                print("Warning: Received interval \(settings.interval) not in availableIntervals. Defaulting.")
+            }
+            hrLogSettingsStatusMessage = "Enabled: \(settings.enabled ? "Yes" : "No"), Interval: \(settings.interval) min"
+        } catch {
+            hrLogSettingsStatusMessage = "Error fetching settings: \(error.localizedDescription)"
+        }
+        isLoadingHRLogSettings = false
+    }
+
+    private func applyHRLogSettings() async {
+        guard bleManager.connectedPeripheral != nil else {
+            hrLogSettingsStatusMessage = "Not connected to device."
+            return
+        }
+        let newSettings = HeartRateLogSettings(enabled: hrLogSettingsEnabled, interval: hrLogIntervalSelection)
+        isLoadingHRLogSettings = true
+        hrLogSettingsStatusMessage = "" // Clear previous status
+
+        do {
+            _ = try await bleManager.setHeartRateLogSettings(settings: newSettings)
+            hrLogSettingsStatusMessage = "Settings applied. Refresh to confirm."
+        } catch {
+            hrLogSettingsStatusMessage = "Error applying settings: \(error.localizedDescription)"
         }
     }
 
