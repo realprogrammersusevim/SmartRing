@@ -76,6 +76,7 @@ class HeartRateLogParser {
     var end: Bool = false
     var range: Int = 5
     var isTodayLog: Bool = false
+    private var requestedDateForLog: Date?
 
     init() {
         reset()
@@ -89,6 +90,12 @@ class HeartRateLogParser {
         end = false
         range = 5
         isTodayLog = false
+        requestedDateForLog = nil
+    }
+
+    func setTargetDateForCurrentLog(_ date: Date) {
+        // Store the start of the day for the requested log
+        requestedDateForLog = Calendar.current.startOfDay(for: date)
     }
 
     func parse(packet: Data) -> HeartRateLog? {
@@ -99,9 +106,21 @@ class HeartRateLogParser {
         let subType = packet[1]
 
         if subType == 255 {
-            print("Error response from heart rate log request")
+            print("HeartRateLogParser: Received 0xFF, interpreting as empty data for the day \(requestedDateForLog?.formatted(date: .long, time: .omitted) ?? "Unknown Date").")
+            guard let dateForLog = requestedDateForLog else {
+                print("HeartRateLogParser: Critical error - 0xFF received but no targetDateForLog set. Cannot create empty log.")
+                reset() // Reset internal state
+                return nil // This will likely lead to a parsing error or timeout in the calling function
+            }
+            let emptyLog = HeartRateLog(
+                heartRates: [],
+                timestamp: dateForLog, // Use the date of the original request
+                size: 0, // No actual data packets
+                index: 0, // Signifies this 0xFF packet itself
+                range: range // Use default or last known range
+            )
             reset()
-            return nil // or throw NoData()
+            return emptyLog
         }
 
         if isTodayLog, subType == 23 {
@@ -137,7 +156,11 @@ class HeartRateLogParser {
             index += 13
 
             if subType == size - 1 { // Check if this is the last packet
-                guard let ts = timestamp else { return nil }
+                guard let ts = timestamp else {
+                    print("HeartRateLogParser: Log ended (all packets received) but no base timestamp from device. This is unexpected.")
+                    reset()
+                    return nil
+                }
                 let result = HeartRateLog(
                     heartRates: heartRates, timestamp: ts, size: size, index: index, range: range
                 )

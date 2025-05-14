@@ -288,7 +288,10 @@ func getStopPacket(readingType: RealTimeReading) -> Data {
 }
 
 func addTimes(heartRates: [Int], ts: Date) -> [(Int, Date)] {
-    assert(heartRates.count == 288, "Need exactly 288 points at 5 minute intervals")
+    // If there are no heart rates (e.g., an empty log for the day), return an empty array.
+    if heartRates.isEmpty {
+        return []
+    }
     var result: [(Int, Date)] = []
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = TimeZone(identifier: "UTC")!
@@ -550,6 +553,8 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
     func getHeartRateLog(targetDate: Date) async throws -> HeartRateLog {
         heartRateLogParser.reset() // Reset parser before starting a new log request
         heartRateLogParser.isTodayLog = Calendar.current.isDateInToday(targetDate)
+        heartRateLogParser.setTargetDateForCurrentLog(targetDate)
+        heartRateLogParser.setTargetDateForCurrentLog(targetDate)
 
         let subData = readHeartRatePacketSubData(target: targetDate)
         let packet = makePacket(command: 0x15, subData: subData) // CMD_READ_HEART_RATE = 21
@@ -850,23 +855,18 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
             }
         } else if packetType == 21, let hrContinuation = heartRateLogContinuation { // CMD_READ_HEART_RATE (multi-packet)
             let parsedLog = heartRateLogParser.parse(packet: value)
-            if heartRateLogParser.end {
+            if let log = parsedLog { // If parse returns a log (empty or full), it's complete.
                 heartRateLogContinuation = nil // Clear before resuming
-                if let log = parsedLog {
-                    hrContinuation.resume(returning: log)
-                } else {
-                    // Parser indicated end, but no log object (e.g., error 255 from device)
-                    hrContinuation.resume(throwing: BLEManagerError.failedToParseData("heart rate log or device error"))
-                }
-            } else if parsedLog != nil {
-                // Parser returned a log, but 'end' is not true. This implies an intermediate log.
-                // Current setup expects one final log. If intermediate logs are needed, this requires redesign.
-                print("HeartRateLogParser returned intermediate log, but 'end' is false. Waiting for final log.")
+                hrContinuation.resume(returning: log)
+                // The parser resets itself internally when it returns a complete log.
             } else {
-                // No log object returned, and not the end. Parser is accumulating.
+                // parsedLog is nil. This means the parser is waiting for more packets.
+                // It hasn't encountered an error that would make it return nil AND complete.
+                // It hasn't completed a log (full or empty yet).
                 print("HeartRateLogParser processed packet, waiting for more.")
             }
         } else if packetType == 67, let stepsContinuation = sportDetailContinuation { // CMD_GET_STEP_SOMEDAY (multi-packet)
+            // ... (existing sport detail logic remains the same)
             let originalIndexIsZero = sportDetailParser.index == 0 // Check before parse resets index on NoData
             let parsedDetails = sportDetailParser.parse(packet: value)
 
