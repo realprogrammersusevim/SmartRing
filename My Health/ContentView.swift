@@ -118,10 +118,29 @@ struct ScanningView: View {
 struct DataDisplayView: View {
     @ObservedObject var bleManager: ColmiR02Client
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \HeartRateData.timestamp, order: .reverse) private var heartRateData: [HeartRateData]
-    @Query(sort: \BloodOxygenData.timestamp, order: .reverse) private var bloodOxygenData: [BloodOxygenData]
+    @Query private var heartRateData: [HeartRateData]
+    @Query private var bloodOxygenData: [BloodOxygenData]
 
     @State private var batteryInfoString: String = "N/A"
+    init(bleManager: ColmiR02Client) {
+        self.bleManager = bleManager
+        let twentyFourHoursAgo = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
+        let heartRatePredicate = #Predicate<HeartRateData> { data in
+            data.timestamp >= twentyFourHoursAgo
+        }
+        let bloodOxygenPredicate = #Predicate<BloodOxygenData> { data in
+            data.timestamp >= twentyFourHoursAgo
+        }
+
+        var heartRateFetchDescriptor = FetchDescriptor<HeartRateData>(predicate: heartRatePredicate, sortBy: [SortDescriptor(\HeartRateData.timestamp, order: .reverse)])
+        heartRateFetchDescriptor.fetchLimit = 30
+        _heartRateData = Query(heartRateFetchDescriptor)
+
+        var bloodOxygenFetchDescriptor = FetchDescriptor<BloodOxygenData>(predicate: bloodOxygenPredicate, sortBy: [SortDescriptor(\BloodOxygenData.timestamp, order: .reverse)])
+        bloodOxygenFetchDescriptor.fetchLimit = 30
+        _bloodOxygenData = Query(bloodOxygenFetchDescriptor)
+    }
+
     @State private var batteryCharging: Bool? = nil
 
     var body: some View {
