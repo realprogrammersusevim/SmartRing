@@ -5,6 +5,7 @@
 //  Created by Jonathan Milligan on 10/15/24.
 //
 
+import Charts
 import HealthKit
 import SwiftData
 import SwiftUI
@@ -58,7 +59,7 @@ struct ScanningView: View {
                         bleManager.startScanning()
                     }) {
                         Label("Start Scan", systemImage: "magnifyingglass")
-                            .frame(maxWidth: .infinity)
+                            .frame(maxWidth: .infinity, maxHeight: 30.0)
                     }
                     .buttonStyle(.borderedProminent)
                     .padding(.horizontal)
@@ -67,8 +68,8 @@ struct ScanningView: View {
                         Button(action: {
                             bleManager.reconnectToLastDevice()
                         }) {
-                            Label("Reconnect to Last Ring", systemImage: "arrow.clockwise.circle")
-                                .frame(maxWidth: .infinity)
+                            Label("Reconnect to Ring", systemImage: "arrow.clockwise.circle")
+                                .frame(maxWidth: .infinity, maxHeight: 30.0)
                         }
                         .buttonStyle(.bordered)
                         .padding(.horizontal)
@@ -117,10 +118,11 @@ struct ScanningView: View {
 struct DataDisplayView: View {
     @ObservedObject var bleManager: ColmiR02Client
     @Environment(\.modelContext) private var modelContext
-    @Query private var heartRateData: [HeartRateData]
-    @Query private var bloodOxygenData: [BloodOxygenData]
+    @Query(sort: \HeartRateData.timestamp, order: .reverse) private var heartRateData: [HeartRateData]
+    @Query(sort: \BloodOxygenData.timestamp, order: .reverse) private var bloodOxygenData: [BloodOxygenData]
 
     @State private var batteryInfoString: String = "N/A"
+    @State private var batteryCharging: Bool? = nil
 
     var body: some View {
         NavigationView {
@@ -130,12 +132,16 @@ struct DataDisplayView: View {
                         Text("Battery:")
                         Spacer()
                         Text(batteryInfoString)
+                        if let charging = batteryCharging {
+                            Image(systemName: charging ? "bolt.fill" : "bolt")
+                        }
                     }
                     Button("Refresh Battery Status") {
                         Task {
                             do {
                                 let batteryInfo = try await bleManager.getBattery()
-                                batteryInfoString = "\(batteryInfo.batteryLevel)% (Charging: \(batteryInfo.charging ? "Yes" : "No"))"
+                                batteryInfoString = "\(batteryInfo.batteryLevel)%"
+                                batteryCharging = batteryInfo.charging
                             } catch {
                                 batteryInfoString = "Error: \(error.localizedDescription)"
                             }
@@ -149,6 +155,8 @@ struct DataDisplayView: View {
                         }
                     }
                 }
+
+                Section("Logged Data Chart") {}
 
                 Section("Logged Heart Rate") {
                     ForEach(heartRateData) { data in

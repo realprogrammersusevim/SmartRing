@@ -599,7 +599,6 @@ class ColmiR02Client: NSObject, ObservableObject, CBCentralManagerDelegate, CBPe
     }
 
     func getRealtimeReading(readingType: RealTimeReading) async throws -> Reading {
-        let startPacketData = getStartPacket(readingType: readingType)
         let stopPacketData = getStopPacket(readingType: readingType)
 
         // Send start, await data response
