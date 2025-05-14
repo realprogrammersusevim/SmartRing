@@ -1,13 +1,13 @@
 //
-//  My_HealthUITestsLaunchTests.swift
-//  My HealthUITests
+//  VilyaUITestsLaunchTests.swift
+//  VilyaUITests
 //
 //  Created by Jonathan Milligan on 10/15/24.
 //
 
 import XCTest
 
-final class My_HealthUITestsLaunchTests: XCTestCase {
+final class VilyaUITestsLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true

@@ -1,14 +1,14 @@
 //
-//  My_HealthTests.swift
+//  VilyaTests.swift
 //  My HealthTests
 //
 //  Created by Jonathan Milligan on 10/15/24.
 //
 
 import Testing
-@testable import My_Health
+@testable import Vilya
 
-struct My_HealthTests {
+struct VilyaTests {
 
     @Test func example() async throws {
         // Write your test here and use APIs like `#expect(...)` to check expected conditions.

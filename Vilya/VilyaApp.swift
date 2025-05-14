@@ -1,6 +1,6 @@
 //
-//  My_HealthApp.swift
-//  My Health
+//  VilyaApp.swift
+//  Vilya
 //
 //  Created by Jonathan Milligan on 10/15/24.
 //
@@ -10,7 +10,7 @@ import SwiftData
 import SwiftUI
 
 @main
-struct My_HealthApp: App {
+struct VilyaApp: App {
     @Environment(\.scenePhase) private var scenePhase
     private let healthDataLogger = HealthDataLogger.shared
 

@@ -12,50 +12,50 @@
 			containerPortal = EBDC09E02CBF512F00696BB6 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = EBDC09E72CBF512F00696BB6;
-			remoteInfo = "My Health";
+			remoteInfo = Vilya;
 		};
 		EBDC0A072CBF513100696BB6 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = EBDC09E02CBF512F00696BB6 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = EBDC09E72CBF512F00696BB6;
-			remoteInfo = "My Health";
+			remoteInfo = Vilya;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		EBDC09E82CBF512F00696BB6 /* My Health.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "My Health.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		EBDC09FC2CBF513100696BB6 /* My HealthTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "My HealthTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
-		EBDC0A062CBF513100696BB6 /* My HealthUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "My HealthUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		EBDC09E82CBF512F00696BB6 /* Vilya.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Vilya.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		EBDC09FC2CBF513100696BB6 /* VilyaTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VilyaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		EBDC0A062CBF513100696BB6 /* VilyaUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VilyaUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		EBDC0A0E2CBF513100696BB6 /* Exceptions for "My Health" folder in "My Health" target */ = {
+		EBDC0A0E2CBF513100696BB6 /* Exceptions for "Vilya" folder in "Vilya" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = EBDC09E72CBF512F00696BB6 /* My Health */;
+			target = EBDC09E72CBF512F00696BB6 /* Vilya */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		EBDC09EA2CBF512F00696BB6 /* My Health */ = {
+		EBDC09EA2CBF512F00696BB6 /* Vilya */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				EBDC0A0E2CBF513100696BB6 /* Exceptions for "My Health" folder in "My Health" target */,
+				EBDC0A0E2CBF513100696BB6 /* Exceptions for "Vilya" folder in "Vilya" target */,
 			);
-			path = "My Health";
+			path = Vilya;
 			sourceTree = "<group>";
 		};
-		EBDC09FF2CBF513100696BB6 /* My HealthTests */ = {
+		EBDC09FF2CBF513100696BB6 /* VilyaTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "My HealthTests";
+			path = VilyaTests;
 			sourceTree = "<group>";
 		};
-		EBDC0A092CBF513100696BB6 /* My HealthUITests */ = {
+		EBDC0A092CBF513100696BB6 /* VilyaUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "My HealthUITests";
+			path = VilyaUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -88,9 +88,9 @@
 		EBDC09DF2CBF512F00696BB6 = {
 			isa = PBXGroup;
 			children = (
-				EBDC09EA2CBF512F00696BB6 /* My Health */,
-				EBDC09FF2CBF513100696BB6 /* My HealthTests */,
-				EBDC0A092CBF513100696BB6 /* My HealthUITests */,
+				EBDC09EA2CBF512F00696BB6 /* Vilya */,
+				EBDC09FF2CBF513100696BB6 /* VilyaTests */,
+				EBDC0A092CBF513100696BB6 /* VilyaUITests */,
 				EBDC09E92CBF512F00696BB6 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -98,9 +98,9 @@
 		EBDC09E92CBF512F00696BB6 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				EBDC09E82CBF512F00696BB6 /* My Health.app */,
-				EBDC09FC2CBF513100696BB6 /* My HealthTests.xctest */,
-				EBDC0A062CBF513100696BB6 /* My HealthUITests.xctest */,
+				EBDC09E82CBF512F00696BB6 /* Vilya.app */,
+				EBDC09FC2CBF513100696BB6 /* VilyaTests.xctest */,
+				EBDC0A062CBF513100696BB6 /* VilyaUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -108,9 +108,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		EBDC09E72CBF512F00696BB6 /* My Health */ = {
+		EBDC09E72CBF512F00696BB6 /* Vilya */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = EBDC0A0F2CBF513100696BB6 /* Build configuration list for PBXNativeTarget "My Health" */;
+			buildConfigurationList = EBDC0A0F2CBF513100696BB6 /* Build configuration list for PBXNativeTarget "Vilya" */;
 			buildPhases = (
 				EBDC09E42CBF512F00696BB6 /* Sources */,
 				EBDC09E52CBF512F00696BB6 /* Frameworks */,
@@ -121,18 +121,18 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				EBDC09EA2CBF512F00696BB6 /* My Health */,
+				EBDC09EA2CBF512F00696BB6 /* Vilya */,
 			);
-			name = "My Health";
+			name = Vilya;
 			packageProductDependencies = (
 			);
-			productName = "My Health";
-			productReference = EBDC09E82CBF512F00696BB6 /* My Health.app */;
+			productName = Vilya;
+			productReference = EBDC09E82CBF512F00696BB6 /* Vilya.app */;
 			productType = "com.apple.product-type.application";
 		};
-		EBDC09FB2CBF513100696BB6 /* My HealthTests */ = {
+		EBDC09FB2CBF513100696BB6 /* VilyaTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = EBDC0A142CBF513100696BB6 /* Build configuration list for PBXNativeTarget "My HealthTests" */;
+			buildConfigurationList = EBDC0A142CBF513100696BB6 /* Build configuration list for PBXNativeTarget "VilyaTests" */;
 			buildPhases = (
 				EBDC09F82CBF513100696BB6 /* Sources */,
 				EBDC09F92CBF513100696BB6 /* Frameworks */,
@@ -144,18 +144,18 @@
 				EBDC09FE2CBF513100696BB6 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				EBDC09FF2CBF513100696BB6 /* My HealthTests */,
+				EBDC09FF2CBF513100696BB6 /* VilyaTests */,
 			);
-			name = "My HealthTests";
+			name = VilyaTests;
 			packageProductDependencies = (
 			);
-			productName = "My HealthTests";
-			productReference = EBDC09FC2CBF513100696BB6 /* My HealthTests.xctest */;
+			productName = VilyaTests;
+			productReference = EBDC09FC2CBF513100696BB6 /* VilyaTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		EBDC0A052CBF513100696BB6 /* My HealthUITests */ = {
+		EBDC0A052CBF513100696BB6 /* VilyaUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = EBDC0A172CBF513100696BB6 /* Build configuration list for PBXNativeTarget "My HealthUITests" */;
+			buildConfigurationList = EBDC0A172CBF513100696BB6 /* Build configuration list for PBXNativeTarget "VilyaUITests" */;
 			buildPhases = (
 				EBDC0A022CBF513100696BB6 /* Sources */,
 				EBDC0A032CBF513100696BB6 /* Frameworks */,
@@ -167,13 +167,13 @@
 				EBDC0A082CBF513100696BB6 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				EBDC0A092CBF513100696BB6 /* My HealthUITests */,
+				EBDC0A092CBF513100696BB6 /* VilyaUITests */,
 			);
-			name = "My HealthUITests";
+			name = VilyaUITests;
 			packageProductDependencies = (
 			);
-			productName = "My HealthUITests";
-			productReference = EBDC0A062CBF513100696BB6 /* My HealthUITests.xctest */;
+			productName = VilyaUITests;
+			productReference = EBDC0A062CBF513100696BB6 /* VilyaUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
@@ -199,7 +199,7 @@
 					};
 				};
 			};
-			buildConfigurationList = EBDC09E32CBF512F00696BB6 /* Build configuration list for PBXProject "My Health" */;
+			buildConfigurationList = EBDC09E32CBF512F00696BB6 /* Build configuration list for PBXProject "Vilya" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -213,9 +213,9 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				EBDC09E72CBF512F00696BB6 /* My Health */,
-				EBDC09FB2CBF513100696BB6 /* My HealthTests */,
-				EBDC0A052CBF513100696BB6 /* My HealthUITests */,
+				EBDC09E72CBF512F00696BB6 /* Vilya */,
+				EBDC09FB2CBF513100696BB6 /* VilyaTests */,
+				EBDC0A052CBF513100696BB6 /* VilyaUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -271,12 +271,12 @@
 /* Begin PBXTargetDependency section */
 		EBDC09FE2CBF513100696BB6 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = EBDC09E72CBF512F00696BB6 /* My Health */;
+			target = EBDC09E72CBF512F00696BB6 /* Vilya */;
 			targetProxy = EBDC09FD2CBF513100696BB6 /* PBXContainerItemProxy */;
 		};
 		EBDC0A082CBF513100696BB6 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = EBDC09E72CBF512F00696BB6 /* My Health */;
+			target = EBDC09E72CBF512F00696BB6 /* Vilya */;
 			targetProxy = EBDC0A072CBF513100696BB6 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -287,13 +287,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "My Health/My_Health.entitlements";
+				CODE_SIGN_ENTITLEMENTS = Vilya/Vilya.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"My Health/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"Vilya/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "My Health/Info.plist";
+				INFOPLIST_FILE = Vilya/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Vilya;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -304,7 +305,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.health.jonathan;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jonathan.vilya;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -317,13 +318,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "My Health/My_Health.entitlements";
+				CODE_SIGN_ENTITLEMENTS = Vilya/Vilya.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"My Health/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"Vilya/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "My Health/Info.plist";
+				INFOPLIST_FILE = Vilya/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Vilya;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -334,7 +336,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "jonathan.My-Health";
+				PRODUCT_BUNDLE_IDENTIFIER = jonathan.vilya;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -477,7 +479,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/My Health.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/My Health";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Vilya.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Vilya";
 			};
 			name = Debug;
 		};
@@ -495,7 +497,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/My Health.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/My Health";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Vilya.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Vilya";
 			};
 			name = Release;
 		};
@@ -511,7 +513,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = "My Health";
+				TEST_TARGET_NAME = Vilya;
 			};
 			name = Debug;
 		};
@@ -527,14 +529,14 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = "My Health";
+				TEST_TARGET_NAME = Vilya;
 			};
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		EBDC09E32CBF512F00696BB6 /* Build configuration list for PBXProject "My Health" */ = {
+		EBDC09E32CBF512F00696BB6 /* Build configuration list for PBXProject "Vilya" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EBDC0A122CBF513100696BB6 /* Debug */,
@@ -543,7 +545,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		EBDC0A0F2CBF513100696BB6 /* Build configuration list for PBXNativeTarget "My Health" */ = {
+		EBDC0A0F2CBF513100696BB6 /* Build configuration list for PBXNativeTarget "Vilya" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EBDC0A102CBF513100696BB6 /* Debug */,
@@ -552,7 +554,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		EBDC0A142CBF513100696BB6 /* Build configuration list for PBXNativeTarget "My HealthTests" */ = {
+		EBDC0A142CBF513100696BB6 /* Build configuration list for PBXNativeTarget "VilyaTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EBDC0A152CBF513100696BB6 /* Debug */,
@@ -561,7 +563,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		EBDC0A172CBF513100696BB6 /* Build configuration list for PBXNativeTarget "My HealthUITests" */ = {
+		EBDC0A172CBF513100696BB6 /* Build configuration list for PBXNativeTarget "VilyaUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EBDC0A182CBF513100696BB6 /* Debug */,
