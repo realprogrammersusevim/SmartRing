@@ -15,7 +15,9 @@ open Vilya -a Xcode
 
 ## Usage example
 
-<!-- TODO -->
+Screen recording of connecting to the ring, getting the battery and then getting my current heart rate and blood oxygen. Everything is logged to Apple Health in the background.
+
+https://github.com/user-attachments/assets/dcad1e36-e0a6-40db-9e95-f28b9e2e2d3a
 
 ## Meta
 
