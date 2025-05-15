@@ -1,9 +1,40 @@
-# Vilya - ColmiR02 Smart Ring Companion App
+# Vilya
 
-This iOS application is designed to connect to a ColmiR02 smart ring, retrieve health data, and store it. It allows users to track various health metrics collected by the smart ring.
+This iOS application is designed to connect to a ColmiR02 smart ring, retrieve
+health data, and store it. It allows users to track health metrics collected by
+the smart ring and store them in Apple Health.
 
-## Features
+## Installation
 
-- Connect to ColmiR02 smart ring via Bluetooth Low Energy (BLE).
-- Retrieve and display health data such as heart rate, blood oxygen, and activity.
-- Integrates with Apple Health to sync health data.
+You'll need Xcode to run this and install it on your iPhone.
+
+```sh
+git clone https://github.com/realprogrammersusevim/Vilya
+open Vilya -a Xcode
+```
+
+## Usage example
+
+<!-- TODO -->
+
+## Meta
+
+Distributed under the Mozilla Public License 2.0. See `LICENSE` for more
+information.
+
+[https://github.com/realprogrammersusevim](https://github.com/realprogrammersusevim/)
+
+## Contributing
+
+1. Fork it (<https://github.com/realprogrammersusevim/Vilya/fork>)
+2. Create your feature branch (`git checkout -b feature/fooBar`)
+3. Commit your changes (`git commit -am 'Add some fooBar'`)
+4. Push to the branch (`git push origin feature/fooBar`)
+5. Create a new Pull Request
+
+## You might also like
+
+- [tahnok/colmi_r02_client](https://github.com/tahnok/colmi_r02_client) Python
+  client and some other utility tools.
+- [GadgetBridge](https://codeberg.org/Freeyourgadget/Gadgetbridge) Android app
+  which supports Colmi rings and many other devices.
