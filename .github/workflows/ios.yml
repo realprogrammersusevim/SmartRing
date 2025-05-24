@@ -36,19 +36,86 @@ jobs:
           platform: ${{ 'iOS Simulator' }}
         run: |
           # xcrun xctrace returns via stderr, not the expected stdout (see https://developer.apple.com/forums/thread/663959)
-          device=`xcrun xctrace list devices 2>&1 | grep -oE 'iPhone.*?[^\(]+' | head -1 | awk '{$1=$1;print}' | sed -e "s/ Simulator$//"`
           if [ $scheme = default ]; then scheme=$(cat default); fi
           if [ "`ls -A | grep -i \\.xcworkspace\$`" ]; then filetype_parameter="workspace" && file_to_build="`ls -A | grep -i \\.xcworkspace\$`"; else filetype_parameter="project" && file_to_build="`ls -A | grep -i \\.xcodeproj\$`"; fi
           file_to_build=`echo $file_to_build | awk '{$1=$1;print}'`
-          xcodebuild build-for-testing -scheme "$scheme" -"$filetype_parameter" "$file_to_build" -destination "platform=$platform,name=$device"
+
+          echo "Determining build destination for scheme '$scheme' and file '$file_to_build'..."
+          # Get the list of destinations from xcodebuild in JSON format
+          # Suppress stderr for the command itself, but check output validity
+          destinations_output=$(xcodebuild -showdestinations -scheme "$scheme" -"$filetype_parameter" "$file_to_build" -json 2>/dev/null)
+
+          # Check if destinations_output is empty or not valid JSON
+          if [ -z "$destinations_output" ] || ! echo "$destinations_output" | jq empty > /dev/null 2>&1; then
+            echo "Error: xcodebuild -showdestinations produced no valid JSON output. Command was:"
+            echo "xcodebuild -showdestinations -scheme \"$scheme\" -\"$filetype_parameter\" \"$file_to_build\" -json"
+            echo "Raw output from xcodebuild -showdestinations:"
+            echo "$destinations_output"
+            echo "Listing devices via xcrun xctrace as a fallback for debugging:"
+            xcrun xctrace list devices
+            exit 1
+          fi
+
+          target_device_id=$(echo "$destinations_output" | jq -r '
+            [
+              .destinations[] | 
+              select(
+                .platform == "iOS Simulator" and 
+                (.name | test("iPhone")) and       # Must be an iPhone
+                (.id | contains("placeholder") | not) # Must not be a placeholder device
+              )
+            ] | sort_by(.OS | split(".") | map(tonumber) )[-1] | .id // empty # Sort by OS version, take latest, get ID
+          ')
+
+          if [ -z "$target_device_id" ]; then
+            echo "Error: No suitable iPhone simulator ID found from xcodebuild -showdestinations."
+            echo "xcodebuild -showdestinations output (JSON):"
+            echo "$destinations_output" | jq . # Pretty print the JSON for inspection
+            exit 1
+          fi
+          echo "Using device ID for build: $target_device_id"
+          xcodebuild build-for-testing -scheme "$scheme" -"$filetype_parameter" "$file_to_build" -destination "platform=$platform,id=$target_device_id"
       - name: Test
         env:
           scheme: ${{ 'default' }}
           platform: ${{ 'iOS Simulator' }}
         run: |
           # xcrun xctrace returns via stderr, not the expected stdout (see https://developer.apple.com/forums/thread/663959)
-          device=`xcrun xctrace list devices 2>&1 | grep -oE 'iPhone.*?[^\(]+' | head -1 | awk '{$1=$1;print}' | sed -e "s/ Simulator$//"`
           if [ $scheme = default ]; then scheme=$(cat default); fi
           if [ "`ls -A | grep -i \\.xcworkspace\$`" ]; then filetype_parameter="workspace" && file_to_build="`ls -A | grep -i \\.xcworkspace\$`"; else filetype_parameter="project" && file_to_build="`ls -A | grep -i \\.xcodeproj\$`"; fi
           file_to_build=`echo $file_to_build | awk '{$1=$1;print}'`
-          xcodebuild test-without-building -scheme "$scheme" -"$filetype_parameter" "$file_to_build" -destination "platform=$platform,name=$device"
+
+          echo "Determining test destination for scheme '$scheme' and file '$file_to_build'..."
+          # Get the list of destinations from xcodebuild in JSON format
+          destinations_output=$(xcodebuild -showdestinations -scheme "$scheme" -"$filetype_parameter" "$file_to_build" -json 2>/dev/null)
+
+          # Check if destinations_output is empty or not valid JSON
+          if [ -z "$destinations_output" ] || ! echo "$destinations_output" | jq empty > /dev/null 2>&1; then
+            echo "Error: xcodebuild -showdestinations produced no valid JSON output for test step. Command was:"
+            echo "xcodebuild -showdestinations -scheme \"$scheme\" -\"$filetype_parameter\" \"$file_to_build\" -json"
+            echo "Raw output from xcodebuild -showdestinations:"
+            echo "$destinations_output"
+            echo "Listing devices via xcrun xctrace as a fallback for debugging:"
+            xcrun xctrace list devices
+            exit 1
+          fi
+
+          target_device_id=$(echo "$destinations_output" | jq -r '
+            [
+              .destinations[] | 
+              select(
+                .platform == "iOS Simulator" and 
+                (.name | test("iPhone")) and       # Must be an iPhone
+                (.id | contains("placeholder") | not) # Must not be a placeholder device
+              )
+            ] | sort_by(.OS | split(".") | map(tonumber) )[-1] | .id // empty # Sort by OS version, take latest, get ID
+          ')
+
+          if [ -z "$target_device_id" ]; then
+            echo "Error: No suitable iPhone simulator ID found from xcodebuild -showdestinations for test."
+            echo "xcodebuild -showdestinations output (JSON):"
+            echo "$destinations_output" | jq . # Pretty print the JSON for inspection
+            exit 1
+          fi
+          echo "Using device ID for test: $target_device_id"
+          xcodebuild test-without-building -scheme "$scheme" -"$filetype_parameter" "$file_to_build" -destination "platform=$platform,id=$target_device_id"
