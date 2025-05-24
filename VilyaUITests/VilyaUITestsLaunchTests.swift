@@ -8,7 +8,6 @@
 import XCTest
 
 final class VilyaUITestsLaunchTests: XCTestCase {
-
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true
     }
