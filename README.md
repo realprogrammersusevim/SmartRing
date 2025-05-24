@@ -1,5 +1,7 @@
 # Vilya
 
+![iOS Testing](https://github.com/realprogrammersusevim/Vilya/actions/workflows/ios.yml/badge.svg?branch=main&event=push)
+
 This iOS application is designed to connect to a ColmiR02 smart ring, retrieve
 health data, and store it. It allows users to track health metrics collected by
 the smart ring and store them in Apple Health.
