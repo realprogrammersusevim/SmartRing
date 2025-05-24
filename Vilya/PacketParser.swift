@@ -149,13 +149,29 @@ class HeartRateLogParser {
             let rates = packet.subdata(in: 6 ..< 15).map { Int($0) }
             rawHeartRates.replaceSubrange(0 ..< 9, with: rates)
             index += 9
-            return nil
+
+            // Check if this is the last packet because size (from header) indicates only one data packet
+            if size == 1 { // This was the only data packet expected
+                guard let ts = timestamp else {
+                    print("HeartRateLogParser: Log ended (subtype 1, size 1) but no base timestamp. This is unexpected.")
+                    reset()
+                    return nil
+                }
+                let result = HeartRateLog(
+                    heartRates: heartRates, timestamp: ts, size: size, index: index, range: range
+                )
+                reset()
+                return result
+            } else {
+                // More packets are expected (size > 1)
+                return nil
+            }
         } else {
             let rates = packet.subdata(in: 2 ..< 15).map { Int($0) }
             rawHeartRates.replaceSubrange(index ..< (index + 13), with: rates)
             index += 13
 
-            if subType == size - 1 { // Check if this is the last packet
+            if subType == size { // Check if this is the last packet (subType matches total data packet count)
                 guard let ts = timestamp else {
                     print("HeartRateLogParser: Log ended (all packets received) but no base timestamp from device. This is unexpected.")
                     reset()
