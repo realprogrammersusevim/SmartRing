@@ -21,7 +21,7 @@ jobs:
           # Choose the path to the desired Xcode version from the list above.
           # For Xcode 16.3 compatibility, look for Xcode_16.x.app.
           # If not available, Xcode_15.4.app or Xcode_15.3.app should fix format 77.
-          sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer # Adjust this path as needed
+          sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer # Adjust this path as needed
           echo "Selected Xcode version:"
           xcodebuild -version
       - name: Set Default Scheme
